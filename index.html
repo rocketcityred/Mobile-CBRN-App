@@ -1,0 +1,2056 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mobile CBRN App">
+<meta name="theme-color" content="#1a1a1a">
+<title>Mobile CBRN App</title>
+<link rel="manifest" href='data:application/manifest+json,{"name":"Mobile CBRN App","short_name":"CBRN App","start_url":"./","display":"standalone","background_color":"%231a1a1a","theme_color":"%231a1a1a","icons":[{"src":"data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 192 192%22><rect width=%22192%22 height=%22192%22 fill=%22%231a1a1a%22/><text x=%2296%22 y=%22118%22 font-family=%22sans-serif%22 font-size=%2272%22 font-weight=%22700%22 text-anchor=%22middle%22 fill=%22%23ffd000%22>CBRN</text></svg>","sizes":"192x192","type":"image/svg+xml"}]}'>
+<style>
+:root{
+  --bg:#1a1a1a;--panel:#222;--panel2:#2a2a2a;--ink:#eee;--ink-dim:#bbb;
+  --muted:#888;--rule:#3a3a3a;--accent:#ffd000;--ok:#4caf50;--warn:#ff9800;
+  --err:#f44336;--info:#2196f3;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --tt:44px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+  font:16px/1.4 -apple-system,BlinkMacSystemFont,system-ui,Segoe UI,Roboto,sans-serif;
+  overscroll-behavior-y:none}
+body{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1px solid var(--rule)}
+.banner{background:var(--accent);color:#000;font-weight:800;text-align:center;
+  padding:6px 8px;font-size:13px;letter-spacing:.06em}
+.titlebar{display:flex;align-items:center;gap:8px;padding:8px 12px;min-height:var(--tt)}
+.titlebar h1{margin:0;font-size:17px;font-weight:700;flex:1;text-align:center}
+.titlebar button{background:var(--panel2);color:var(--ink);border:1px solid var(--rule);
+  border-radius:8px;min-height:36px;min-width:36px;padding:0 10px;font-size:14px}
+main{padding:12px;max-width:760px;margin:0 auto}
+.view{display:none}.view.active{display:block}
+h2{font-size:20px;margin:8px 0 12px}h3{font-size:16px;margin:14px 0 6px}
+.card{background:var(--panel);border:1px solid var(--rule);border-radius:10px;
+  padding:12px;margin:0 0 10px}
+.menu{display:flex;flex-direction:column;gap:10px}
+.menu .item{background:var(--panel);border:1px solid var(--rule);border-radius:10px;
+  padding:14px;min-height:var(--tt);display:flex;flex-direction:column;gap:4px;color:inherit;
+  text-align:left;font:inherit;cursor:pointer}
+.menu .item:active{background:var(--panel2)}
+.menu .item .t{font-weight:700;font-size:17px}.menu .item .d{color:var(--ink-dim);font-size:14px}
+button.primary,button.secondary,button.ghost{min-height:var(--tt);padding:0 14px;border-radius:10px;
+  font-size:15px;font-weight:600;border:1px solid var(--rule)}
+button.primary{background:var(--accent);color:#000;border-color:var(--accent)}
+button.secondary{background:var(--panel2);color:var(--ink)}
+button.ghost{background:transparent;color:var(--ink-dim)}
+button:disabled{opacity:.5}
+.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1 1 auto}
+.tabs{display:flex;gap:6px;margin-bottom:10px}
+.tabs button{flex:1;min-height:40px;background:var(--panel2);color:var(--ink-dim);
+  border:1px solid var(--rule);border-radius:8px;font-size:14px;font-weight:600}
+.tabs button.on{background:var(--accent);color:#000;border-color:var(--accent)}
+label{display:block;font-size:13px;color:var(--ink-dim);margin:0 0 4px}
+.field{margin:0 0 10px}
+.field .lbl{display:flex;justify-content:space-between;align-items:baseline;gap:6px;margin-bottom:4px}
+.field .lbl .name{font-size:13px;color:var(--ink);font-weight:600}
+.field .lbl .meta{font-size:11px;color:var(--muted);font-family:var(--mono)}
+.field .help{font-size:12px;color:var(--ink-dim);margin-top:2px}
+input[type=text],input[type=number],textarea,select{
+  width:100%;min-height:var(--tt);background:var(--panel2);color:var(--ink);
+  border:1px solid var(--rule);border-radius:8px;padding:10px;font-size:16px;
+  font-family:var(--mono)}
+textarea{min-height:120px;resize:vertical}
+select{font-family:inherit;-webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'><path fill='%23bbb' d='M0 0h12L6 8z'/></svg>");
+  background-repeat:no-repeat;background-position:right 12px center;background-size:10px;
+  padding-right:32px}
+.set{background:var(--panel);border:1px solid var(--rule);border-radius:10px;
+  padding:12px;margin:0 0 10px}
+.set .set-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:0 0 8px}
+.set .set-name{font-family:var(--mono);font-weight:700;color:var(--accent);font-size:15px}
+.set .set-desc{font-size:12px;color:var(--ink-dim);text-align:right;flex:1}
+.set .set-flag{font-size:11px;color:var(--muted);font-family:var(--mono)}
+.repeat-ctrl{display:flex;gap:6px;margin:6px 0 4px;align-items:center;flex-wrap:wrap}
+.repeat-ctrl .pill{font-size:11px;color:var(--muted);background:var(--panel2);
+  border:1px solid var(--rule);border-radius:4px;padding:2px 6px;font-family:var(--mono)}
+.repeat-block{border-left:2px solid var(--rule);padding-left:8px;margin:0 0 6px}
+.preview{background:#000;color:#cfc;font-family:var(--mono);font-size:13px;
+  padding:12px;border-radius:8px;white-space:pre-wrap;word-break:break-all;
+  border:1px solid var(--rule);max-height:240px;overflow:auto}
+.validation{font-size:13px;margin:8px 0}
+.validation .ok{color:var(--ok)}
+.validation .warn{color:var(--warn)}
+.validation .err{color:var(--err)}
+.validation ul{margin:4px 0;padding-left:20px}
+.parsed-set{border:1px solid var(--rule);border-radius:8px;padding:10px;margin:0 0 8px}
+.parsed-set .h{font-family:var(--mono);font-weight:700;color:var(--accent);font-size:14px;margin:0 0 6px}
+.parsed-field{display:grid;grid-template-columns:90px 1fr;gap:8px;padding:4px 0;
+  border-top:1px solid var(--rule);font-size:13px}
+.parsed-field:first-of-type{border-top:none}
+.parsed-field .k{color:var(--muted);font-family:var(--mono);font-size:11px}
+.parsed-field .v{color:var(--ink);word-break:break-all}
+.parsed-field .v .raw{color:var(--accent);font-family:var(--mono)}
+.parsed-field .v .decoded{color:var(--ink-dim);font-size:12px;display:block;margin-top:2px}
+.parsed-field.bad .v{color:var(--err)}
+.parsed-field.warn .v{color:var(--warn)}
+.tag{display:inline-block;font-size:10px;font-family:var(--mono);font-weight:700;
+  padding:1px 5px;border-radius:3px;margin-left:4px;vertical-align:middle}
+.tag.unverified{background:var(--warn);color:#000}
+.tag.mandatory{background:#444;color:#ddd}
+.tag.optional{background:#333;color:#aaa}
+.tag.conditional{background:#553;color:#dca}
+.ref-set{margin:0 0 14px}
+.ref-set h4{margin:0 0 4px;font-family:var(--mono);color:var(--accent);font-size:14px}
+.ref-set .desc{color:var(--ink-dim);font-size:13px;margin:0 0 6px}
+.ref-set .ref-field{font-size:12px;padding:4px 0;border-top:1px solid var(--rule)}
+.ref-set .ref-field .nm{font-weight:600}
+.ref-set .ref-field .ty{font-family:var(--mono);color:var(--muted);margin-left:6px}
+.ref-set .ref-enum{font-family:var(--mono);font-size:11px;color:var(--ink-dim);
+  margin-top:4px;padding:4px;background:var(--panel2);border-radius:4px}
+.log{background:#000;color:#9c9;font-family:var(--mono);font-size:11px;
+  padding:8px;border-radius:6px;max-height:200px;overflow:auto;white-space:pre-wrap}
+.test-row{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid var(--rule);font-size:13px}
+.test-row:first-of-type{border-top:none}
+.test-row .nm{flex:1;word-break:break-word}
+.test-row .st{font-family:var(--mono);font-weight:700;font-size:12px}
+.test-row.pass .st{color:var(--ok)}
+.test-row.fail .st{color:var(--err)}
+.test-row .err{flex-basis:100%;color:var(--err);font-family:var(--mono);font-size:11px;
+  margin-top:4px;white-space:pre-wrap}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  background:#000c;color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;
+  z-index:100;border:1px solid var(--rule);opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+.notes{font-size:12px;color:var(--ink-dim);margin:8px 0}
+.crumb{font-size:12px;color:var(--muted);margin:0 0 8px}
+.kbd{font-family:var(--mono);background:var(--panel2);padding:1px 5px;border-radius:3px;
+  border:1px solid var(--rule);font-size:11px}
+hr.sep{border:0;border-top:1px solid var(--rule);margin:14px 0}
+details summary{cursor:pointer;padding:6px 0;font-weight:600}
+details[open] summary{margin-bottom:6px}
+.checkbox-row{display:flex;align-items:center;gap:8px;min-height:var(--tt)}
+.checkbox-row input{width:22px;height:22px}
+.checkbox-row label{margin:0}
+@media(min-width:560px){
+  .parsed-field{grid-template-columns:140px 1fr}
+}
+.photo-help{margin-top:10px;background:var(--panel2);border:1px solid var(--rule);
+  border-radius:8px;padding:8px 10px;font-size:13px}
+.photo-help summary{font-weight:600;color:var(--ink)}
+.photo-help ol{margin:6px 0 4px 18px;padding:0;color:var(--ink-dim)}
+.photo-help li{margin:4px 0}
+.photo-help code{font-family:var(--mono);background:#000;color:var(--accent);
+  padding:0 4px;border-radius:3px;font-size:12px}
+.photo-box{margin-top:10px;background:#000;border:1px solid var(--rule);
+  border-radius:8px;overflow:hidden}
+.photo-box .photo-bar{display:flex;justify-content:space-between;align-items:center;
+  gap:8px;padding:6px 8px;background:var(--panel2);border-bottom:1px solid var(--rule);
+  flex-wrap:wrap}
+.photo-box img{display:block;width:100%;height:auto;max-height:60vh;object-fit:contain;
+  background:#000;-webkit-user-select:auto;user-select:auto;-webkit-touch-callout:default}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="banner" id="trainingBanner">TRAINING USE ONLY — Not for operational use</div>
+  <div class="titlebar">
+    <button id="btnBack" style="visibility:hidden">‹ Back</button>
+    <h1 id="appTitle">Mobile CBRN App</h1>
+    <button id="btnMenu">≡</button>
+  </div>
+</header>
+
+<main>
+  <!-- HOME / MENU -->
+  <section id="view-home" class="view active">
+    <h2>Modules</h2>
+    <div class="menu" id="moduleMenu"></div>
+    <hr class="sep">
+    <h3>Tools</h3>
+    <div class="menu">
+      <button class="item" data-go="tests"><span class="t">Run Tests</span><span class="d">Golden-sample round-trips, validators, tokenizer.</span></button>
+      <button class="item" data-go="help"><span class="t">Help &amp; About</span><span class="d">Training-only notice, iOS guidance, citations.</span></button>
+      <button class="item" data-go="log"><span class="t">Debug Log</span><span class="d">Toggleable tokenization/validation trace.</span></button>
+    </div>
+    <p class="notes">
+      Source authority: FM 3-11.3 / MCWP 3-37.2A / NTTP 3-11.25 / AFTTP(I) 3-2.56 (2 Feb 2006).
+      Public release; distribution unlimited. v1 covers the platform shell plus
+      Module 1 (Report Builder/Parser) for CHEM NBC1/2/3.
+    </p>
+  </section>
+
+  <!-- HELP -->
+  <section id="view-help" class="view">
+    <div class="crumb">Home › Help &amp; About</div>
+    <h2>Help &amp; About</h2>
+    <div class="card">
+      <h3>Training use only</h3>
+      <p>This app is a proficiency aid. It is not an accredited messaging or
+        hazard-prediction system. Do not let its output drive operational decisions.
+        The yellow banner is mandatory and cannot be hidden.</p>
+    </div>
+    <div class="card">
+      <h3>What it does</h3>
+      <p><strong>Module 1 — Report Builder/Parser.</strong> Construct CHEM NBC1/2/3 reports
+        from form fields, or paste a report string and have each set decoded into
+        labeled fields. Validation is per the manual's set / field / enumeration
+        definitions. Anything the source doesn't pin down is tagged <span class="tag unverified">UNVERIFIED</span>
+        rather than guessed.</p>
+    </div>
+    <div class="card">
+      <h3>iPhone notes</h3>
+      <ul>
+        <li><strong>Copy to clipboard</strong> is the reliable mobile path. File save / import
+          on iOS Safari works through the Files app via the share sheet but is clunkier.</li>
+        <li>Use <strong>Add to Home Screen</strong> from Safari's share sheet for a clean
+          full-screen shell. The app runs entirely offline once loaded.</li>
+        <li>State is held in memory only. Use <strong>Save scenario</strong> to persist work
+          between sessions — iOS Safari evicts <code>localStorage</code>, so this app
+          does not depend on it.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Citations</h3>
+      <p>All field, type, enumeration, and per-report set membership definitions
+        come from FM 3-11.3 / MCWP 3-37.2A / NTTP 3-11.25 / AFTTP(I) 3-2.56,
+        2 Feb 2006 (Tables III-1, III-2, III-3, III-4 and Appendix E sample
+        reports — Figures E-1, E-2, E-3).</p>
+    </div>
+  </section>
+
+  <!-- DEBUG LOG -->
+  <section id="view-log" class="view">
+    <div class="crumb">Home › Debug Log</div>
+    <h2>Debug Log</h2>
+    <div class="row" style="margin-bottom:8px">
+      <label class="checkbox-row" style="flex:0 0 auto">
+        <input type="checkbox" id="logToggle"> <label for="logToggle">Enabled</label>
+      </label>
+      <button class="ghost" id="logClear" style="flex:0 0 auto">Clear</button>
+    </div>
+    <div class="log" id="logOutput">(empty)</div>
+  </section>
+
+  <!-- TESTS -->
+  <section id="view-tests" class="view">
+    <div class="crumb">Home › Tests</div>
+    <h2>Tests</h2>
+    <p class="notes">Golden-sample round-trip fixtures from Figures E-1, E-2, E-3 plus the
+      user-provided NBC3 sample; field-type, enumeration, M/O/C, repeatable-field,
+      tokenizer, labeling, and <span class="tag unverified">UNVERIFIED</span>-handling unit tests.</p>
+    <button class="primary" id="runTestsBtn">Run all tests</button>
+    <div id="testResults" style="margin-top:12px"></div>
+  </section>
+
+  <!-- MODULE 1 ROOT -->
+  <section id="view-mod1" class="view">
+    <div class="crumb">Home › Module 1 — Report Builder/Parser</div>
+    <h2>Report Builder / Parser</h2>
+    <div class="tabs" role="tablist">
+      <button data-tab="construct" class="on">Construct</button>
+      <button data-tab="parse">Parse</button>
+      <button data-tab="reference">Reference</button>
+    </div>
+
+    <div id="tab-construct">
+      <div class="card">
+        <label for="reportType">Report type</label>
+        <select id="reportType">
+          <option value="NBC1_CHEM">NBC1 CHEM — observer's report</option>
+          <option value="NBC2_CHEM">NBC2 CHEM — evaluated data</option>
+          <option value="NBC3_CHEM">NBC3 CHEM — predicted hazard warning</option>
+        </select>
+        <div class="row" style="margin-top:10px">
+          <button class="ghost" id="loadSampleBtn">Load sample</button>
+          <button class="ghost" id="resetBtn">Reset</button>
+        </div>
+      </div>
+      <div id="constructForm"></div>
+      <div class="card">
+        <h3>Live preview</h3>
+        <div class="preview" id="previewBox">(empty)</div>
+        <div class="validation" id="validationBox"></div>
+        <div class="row" style="margin-top:10px">
+          <button class="primary" id="copyBtn">Copy</button>
+          <button class="secondary" id="downloadBtn">Download .txt</button>
+          <button class="secondary" id="saveScenarioBtn">Save scenario</button>
+          <button class="secondary" id="loadScenarioBtn">Load scenario</button>
+        </div>
+        <input type="file" id="scenarioFile" accept="application/json,.json" style="display:none">
+      </div>
+    </div>
+
+    <div id="tab-parse" style="display:none">
+      <div class="card">
+        <label for="parseInput">Paste report</label>
+        <textarea id="parseInput" placeholder="e.g. BRAVO/32UNB062634/2500MLG//&#10;GOLF/OBS/AIR/1/BML/-//"></textarea>
+        <div class="row" style="margin-top:10px">
+          <button class="primary" id="parseBtn">Parse</button>
+          <button class="secondary" id="parseLoadEditBtn" disabled>Load into editor</button>
+          <button class="secondary" id="parsePhotoBtn">From photo</button>
+          <button class="ghost" id="parseClearBtn">Clear</button>
+        </div>
+        <input type="file" id="parsePhotoInput" accept="image/*" capture="environment" style="display:none">
+        <details class="photo-help">
+          <summary>Scan from a photo (iPhone)</summary>
+          <ol>
+            <li><strong>Keyboard scanner</strong> — tap inside the box above; on iOS&nbsp;15+ a small
+              text-scan icon appears on the keyboard. Tap it to live-scan text straight into the field.</li>
+            <li><strong>From Photos app</strong> — open the photo, long-press the report text,
+              choose <em>Copy</em>, return here, tap the box, choose <em>Paste</em>.</li>
+            <li><strong>From photo (this button)</strong> — picks a photo or opens the camera and
+              shows the image below. Long-press the image, choose <em>Copy Text</em>, tap the box, paste.</li>
+          </ol>
+          <p class="notes">Live Text is system-provided. The app does no OCR itself, so accuracy
+            and language support match what iOS recognizes natively. Always proof-read pasted text
+            — slashes (<code>/</code>, <code>//</code>) and hyphens (<code>-</code>) are common
+            mis-reads.</p>
+        </details>
+        <div id="parsePhotoBox" class="photo-box" style="display:none">
+          <div class="photo-bar">
+            <span class="pill">Long-press the image → Copy Text → paste above</span>
+            <button class="ghost" id="parsePhotoClear">Remove</button>
+          </div>
+          <img id="parsePhotoImg" alt="Imported report photo">
+        </div>
+      </div>
+      <div id="parseOutput"></div>
+    </div>
+
+    <div id="tab-reference" style="display:none">
+      <p class="notes">Set dictionary and enumeration tables, transcribed from
+        Tables III-1, III-2, III-3, III-4. Sets used by CHEM NBC1/2/3 in v1
+        are marked <strong>[v1]</strong>; others are listed for forward use.</p>
+      <div id="referenceOut"></div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   Mobile CBRN App — single-file shell + Module 1 (CHEM NBC1/2/3)
+   Source authority for all dictionaries, types, enumerations,
+   per-report set membership, and sample reports:
+     FM 3-11.3 / MCWP 3-37.2A / NTTP 3-11.25 / AFTTP(I) 3-2.56
+     (2 Feb 2006), Tables III-1, III-2, III-3, III-4;
+     Appendix E Figures E-1 (NBC1), E-2 (NBC2), E-3 (NBC3).
+   All references inline below as "[Table III-X]" / "[Fig E-N]".
+   Items the source does not unambiguously specify are tagged
+   `unverified: true` in code and surfaced as UNVERIFIED in UI.
+   ============================================================ */
+
+const App = {};
+
+/* ---------- Debug Log ---------- */
+App.Log = (function(){
+  let enabled = false; const buf = [];
+  const cap = 500;
+  function set(b){ enabled = !!b; render(); }
+  function add(kind, ...parts){
+    if (!enabled) return;
+    const line = '['+kind+'] '+parts.map(p=>typeof p==='string'?p:JSON.stringify(p)).join(' ');
+    buf.push(line); if (buf.length>cap) buf.shift();
+    render();
+  }
+  function clear(){ buf.length=0; render(); }
+  function render(){
+    const el = document.getElementById('logOutput');
+    if (!el) return;
+    el.textContent = buf.length? buf.join('\n') : '(empty)';
+    el.scrollTop = el.scrollHeight;
+  }
+  return { set, add, clear, get enabled(){return enabled;} };
+})();
+
+/* ---------- Toast ---------- */
+function toast(msg, ms=1600){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=>t.classList.remove('show'), ms);
+}
+
+/* ============================================================
+   ENUMERATIONS — transcribed from Table III-2 (and III-3/III-4
+   pointers per §3.1 of the requirements). Each entry is
+   { code, label, unverified?:bool }.
+   ============================================================ */
+App.Enumerations = {
+
+  // ALFA field 4 — Type of incident. [Table III-2 ALFA]
+  incidentType: [
+    { code:'N',  label:'Nuclear attack' },
+    { code:'B',  label:'Biological attack' },
+    { code:'C',  label:'Chemical attack' },
+    { code:'RN', label:'Nuclear ROTA' },
+    { code:'RB', label:'Biological ROTA' },
+    { code:'RC', label:'Chemical ROTA' },
+    { code:'RU', label:'Unidentified ROTA' }
+  ],
+
+  // FOXTROT field 2 — Location qualifier. [Table III-2 FOXTROT]
+  // §3.1 / §8(3) note: manual text lists AA/EA but samples show EE.
+  // Treated here as 2A enumeration with EE flagged unverified.
+  foxtrotQualifier: [
+    { code:'AA', label:'Actual area' },
+    { code:'EA', label:'Estimated area' },
+    { code:'EE', label:'(per sample) — verify against Table III-2', unverified:true }
+  ],
+
+  // GOLF field 1 — Suspected/Observed. [Table III-2 GOLF]
+  golfSusObs: [
+    { code:'SUS', label:'Suspected' },
+    { code:'OBS', label:'Observed' }
+  ],
+
+  // GOLF field 2 — Type of delivery. [Table III-2 GOLF]
+  golfDelivery: [
+    { code:'AIR', label:'Aircraft' },
+    { code:'BOM', label:'Bomb' },
+    { code:'CAN', label:'Cannon' },
+    { code:'MLR', label:'Multiple-launch rocket' },
+    { code:'MSL', label:'Missile' },
+    { code:'MOR', label:'Mortar' },
+    { code:'PLT', label:'Aircraft spray / platform', unverified:true },
+    { code:'RLD', label:'Rocket-launched device', unverified:true },
+    { code:'SHP', label:'Ship' },
+    { code:'TPT', label:'Transport', unverified:true },
+    { code:'UNK', label:'Unknown' }
+  ],
+
+  // GOLF field 4 — Type of agent container. [Table III-2 GOLF]
+  golfContainer: [
+    { code:'BML', label:'Bomblet' },
+    { code:'BOM', label:'Bomb' },
+    { code:'BTL', label:'Bottle' },
+    { code:'BUK', label:'Bulk' },
+    { code:'CON', label:'Container' },
+    { code:'DRM', label:'Drum' },
+    { code:'GEN', label:'Generator' },
+    { code:'MSL', label:'Missile' },
+    { code:'RCT', label:'Reactor / canister', unverified:true },
+    { code:'RKT', label:'Rocket' },
+    { code:'SHL', label:'Shell' },
+    { code:'SPR', label:'Sprayer' },
+    { code:'STK', label:'Stick' },
+    { code:'TNK', label:'Tank' },
+    { code:'TOR', label:'Torpedo' },
+    { code:'MNE', label:'Mine' },
+    { code:'UNK', label:'Unknown' },
+    { code:'WST', label:'Waste' }
+  ],
+
+  // GOLF field 5 alt — size of release (when not numeric count).
+  // [Table III-2 GOLF]
+  golfSize: [
+    { code:'SML', label:'Small (<200 L/kg)' },
+    { code:'LRG', label:'Large' },
+    { code:'XLG', label:'Extra large (>1,500 L/kg)' },
+    { code:'UNK', label:'Unknown' }
+  ],
+
+  // INDIA field 1 — Type of agent release height. [Table III-2 INDIA]
+  agentReleaseHeight: [
+    { code:'AIR',  label:'Air release' },
+    { code:'SUBS', label:'Subsurface release' },
+    { code:'SURF', label:'Surface release' },
+    { code:'UNK',  label:'Unknown' }
+  ],
+
+  // INDIA field 2 — Type of agent (Table III-3 pointer).
+  // Minimal stub; §8(5) of requirements: until Table III-3 is
+  // transcribed, accept and surface unknown agent codes as UNVERIFIED.
+  agentType: [
+    { code:'NERV', label:'Nerve agent' },
+    { code:'BLST', label:'Blister agent', unverified:true },
+    { code:'BLOD', label:'Blood agent',   unverified:true },
+    { code:'CHKG', label:'Choking agent', unverified:true }
+  ],
+
+  // INDIA field 3 — Type of persistency. [Table III-2 INDIA]
+  persistency: [
+    { code:'P',   label:'Persistent' },
+    { code:'NP',  label:'Nonpersistent' },
+    { code:'T',   label:'Thickened' },
+    { code:'UNK', label:'Unknown' }
+  ],
+
+  // INDIA field 4 (rep ×2) — Type of detection. [Table III-2 INDIA]
+  // §8(4): the manual sample shows ACD which is not in the listed
+  // enumeration; surface as unverified rather than reject.
+  indiaDetection: [
+    { code:'OTH',   label:'Other (use GENTEXT)' },
+    { code:'MPDS',  label:'Manned point detection system' },
+    { code:'UMPDS', label:'Unmanned point detection system' },
+    { code:'MSDS',  label:'Manned standoff detection system' },
+    { code:'UMSDS', label:'Unmanned standoff detection system' },
+    { code:'MSVY',  label:'Manned survey' },
+    { code:'UMSVY', label:'Unmanned survey' },
+    { code:'ACD',   label:'(per Fig E-1 sample) — verify against Table III-2', unverified:true }
+  ],
+
+  // TANGO — Terrain & vegetation. [Table III-2 TANGO]
+  // §8(2): exact allowed sets not fully transcribed; sample shows
+  // FLAT/URBAN. Open enumeration; flag unknown.
+  tangoTerrain: [
+    { code:'FLAT',     label:'Flat' },
+    { code:'ROLLING',  label:'Rolling', unverified:true },
+    { code:'HILLY',    label:'Hilly',   unverified:true },
+    { code:'MOUNTAIN', label:'Mountainous', unverified:true }
+  ],
+  tangoVegetation: [
+    { code:'URBAN',  label:'Urban' },
+    { code:'OPEN',   label:'Open',   unverified:true },
+    { code:'FOREST', label:'Forest', unverified:true },
+    { code:'JUNGLE', label:'Jungle', unverified:true }
+  ]
+
+};
+
+/* ============================================================
+   FIELD TYPE VALIDATORS  [§2.3 of requirements / manual §III "5g/5h"]
+   spec: { class: 'N'|'A'|'X'|'AN', min:int, max:int }
+   parseSpec('1-3N') -> {class:'N',min:1,max:3}
+   parseSpec('2A')   -> {class:'A',min:2,max:2}
+   ============================================================ */
+App.Validators = (function(){
+  function parseSpec(spec){
+    const m = /^(\d+)(?:-(\d+))?([NAX]|AN)$/.exec(spec);
+    if (!m) throw new Error('Bad type spec: '+spec);
+    const min = parseInt(m[1],10);
+    const max = m[2]? parseInt(m[2],10) : min;
+    return { class:m[3], min, max };
+  }
+  function classRe(cls){
+    switch(cls){
+      case 'N':  return /^[0-9]+$/;
+      case 'A':  return /^[A-Za-z]+$/;
+      case 'AN': return /^[A-Za-z0-9]+$/;
+      // X is per manual "any" — kept permissive for free-form fields
+      // (GENTEXT text in particular contains commas/spaces).
+      case 'X':  return /^.+$/;
+    }
+    throw new Error('Bad class '+cls);
+  }
+  function validate(value, spec){
+    if (value === '' || value == null) return { ok:false, error:'empty' };
+    if (value === '-') return { ok:true, empty:true };
+    const s = parseSpec(spec);
+    const re = classRe(s.class);
+    const errors = [];
+    if (!re.test(value)) errors.push('class '+s.class+' mismatch');
+    if (value.length < s.min || value.length > s.max){
+      errors.push('length '+value.length+' outside '+s.min+(s.min!==s.max?('-'+s.max):''));
+    }
+    return errors.length? { ok:false, error:errors.join('; ') } : { ok:true };
+  }
+  // Pads a numeric to the spec's max length (e.g., 40 in 3N -> "040").
+  function padNumeric(value, spec){
+    const s = parseSpec(spec);
+    if (s.class !== 'N') return value;
+    let v = String(value);
+    if (!/^[0-9]+$/.test(v)) return v;
+    while (v.length < s.max) v = '0'+v;
+    return v;
+  }
+  return { parseSpec, validate, padNumeric };
+})();
+
+/* ============================================================
+   SET DICTIONARY  [Table III-1 + Table III-2]
+   Each set has:
+     desc:        human meaning
+     v1:          true when used by CHEM NBC1/2/3 in v1 (§3.1)
+     fields:      ordered list of {name, type|types[], spec, flag, enumKey?, help, unverified?}
+                  type can be 'string'|'enum'|'altEnum'|'dtg'|'direction'|'speed'|'altGrid'
+                  spec is the manual's count-class string (e.g. '2A','1-3N','6-7AN')
+                  flag is 'M'|'O'|'C' per §2.3
+     repeatGroup: {start:i, end:j, max:n}  -- (FOXTROT)
+     fieldRepeatable: {index:i, max:n}     -- (INDIA field 4)
+     unverified:  true when whole set's sub-fields not fully pinned down (§8)
+   ============================================================ */
+App.SetDefs = {
+
+  /* ===== ALFA — Strike Serial Number  [Table III-2] ===== */
+  ALFA: {
+    desc: 'Strike serial number', v1:true,
+    fields: [
+      { name:'nationality', spec:'2-3AN', flag:'M',
+        help:'Nationality (2A) or area control center code (2-3AN)' },
+      { name:'originator', spec:'1-6X', flag:'M',
+        help:'Code for originator' },
+      { name:'sequence',   spec:'1-10X', flag:'M',
+        help:'Sequence number' },
+      { name:'type', spec:'1-2A', flag:'M', enumKey:'incidentType',
+        help:'Type of incident (CHEM normally C)' },
+      { name:'grading',    spec:'1-3N', flag:'O',
+        help:'Grading of message/report' }
+    ]
+  },
+
+  /* ===== BRAVO — Location of Observer + Direction  [Table III-2] ===== */
+  BRAVO: {
+    desc: 'Observer location & attack direction', v1:true,
+    fields: [
+      { name:'location', spec:'1-30X', flag:'M',
+        help:'Place name (1-30X), LAT/LONG sec (15AN), UTM 10-m (13AN), LAT/LONG min (11AN), or UTM 100-m (11AN)' },
+      { name:'direction', spec:'6-7AN', flag:'M',
+        help:'Direction from observer + unit (e.g., 2500MLG, 270DGT)' }
+    ]
+  },
+
+  /* ===== CHARLIE — DTG of report and end of event  [Table III-2] ===== */
+  CHARLIE: {
+    desc: 'DTG of report/observation; end of event', v1:true,
+    fields: [
+      { name:'dtgReport', spec:'14AN', flag:'M', type:'dtg',
+        help:'DTG of report/observation (DDHHMMZmmmYYYY)' },
+      { name:'dtgEnd',    spec:'14AN', flag:'O', type:'dtg',
+        help:'DTG event ended' }
+    ]
+  },
+
+  /* ===== DELTA — DTG of attack & attack end  [Table III-2] ===== */
+  DELTA: {
+    desc: 'DTG of attack/detonation; attack end', v1:true,
+    fields: [
+      { name:'dtgAttack', spec:'14AN', flag:'M', type:'dtg',
+        help:'DTG of attack/detonation (DDHHMMZmmmYYYY)' },
+      { name:'dtgEnd',    spec:'14AN', flag:'O', type:'dtg',
+        help:'DTG attack ended' }
+    ]
+  },
+
+  /* ===== FOXTROT — Location of attack/event  [Table III-2] =====
+     Fields 1-2 repeatable up to 6 (loc, qual) pairs. */
+  FOXTROT: {
+    desc: 'Location(s) of attack/event', v1:true,
+    fields: [
+      { name:'location',  spec:'1-30X', flag:'M',
+        help:'Place name, LAT/LONG sec/min, UTM 10-m/100-m grid' },
+      { name:'qualifier', spec:'2A', flag:'M', enumKey:'foxtrotQualifier',
+        help:'Area qualifier (AA actual, EA estimated; EE seen in samples — verify)' }
+    ],
+    repeatGroup: { start:0, end:1, max:6 }
+  },
+
+  /* ===== GOLF — Delivery & Quantity  [Table III-2] ===== */
+  GOLF: {
+    desc: 'Delivery & quantity information', v1:true,
+    fields: [
+      { name:'susObs',     spec:'3A', flag:'M', enumKey:'golfSusObs',
+        help:'Suspected (SUS) or observed (OBS)' },
+      { name:'delivery',   spec:'3A', flag:'M', enumKey:'golfDelivery',
+        help:'Type of delivery system' },
+      { name:'numSystems', spec:'1-3N', flag:'M',
+        help:'Number of delivery systems' },
+      { name:'container',  spec:'3A', flag:'M', enumKey:'golfContainer',
+        help:'Type of agent container' },
+      { name:'quantity',   spec:'1-3N', flag:'M', enumKey:'golfSize', altSpec:'3A',
+        help:'Number of agent containers (1-3N) OR size of release (3A: SML/LRG/XLG/UNK)' }
+    ]
+  },
+
+  /* ===== INDIA — Release information CB agent  [Table III-2] =====
+     Field 4 (detection) repeatable up to 2. */
+  INDIA: {
+    desc: 'Release information — CB agent', v1:true,
+    fields: [
+      { name:'height',  spec:'3-4A', flag:'M', enumKey:'agentReleaseHeight',
+        help:'AIR, SUBS, SURF, UNK' },
+      { name:'agent',   spec:'1-4A', flag:'O', enumKey:'agentType',
+        help:'Type of agent (Table III-3) or agent name (Table III-4) or UN/NA 4N' },
+      { name:'persist', spec:'1-3A', flag:'O', enumKey:'persistency',
+        help:'P, NP, T, UNK' },
+      { name:'detect',  spec:'3-5A', flag:'O', enumKey:'indiaDetection',
+        help:'OTH, MPDS, UMPDS, MSDS, UMSDS, MSVY, UMSVY' }
+    ],
+    fieldRepeatable: { index:3, max:2 }
+  },
+
+  /* ===== PAPAA — Predicted attack & hazard area  [Table III-2 — partial] =====
+     §3.1/§8(2): exact field meanings not fully unambiguous from doc;
+     transcribed best-effort from CHEM NBC3 samples and flagged. */
+  PAPAA: {
+    desc: 'Predicted attack/release & hazard area', v1:true, unverified:true,
+    fields: [
+      { name:'attackRadius',   spec:'1-10X', flag:'M',
+        help:'Attack-area radius (e.g., 1KM, 01KM) — verify against Table III-2', unverified:true },
+      { name:'attackDuration', spec:'1-10X', flag:'O',
+        help:'Attack-area duration (e.g., 3-10DAY) — verify against Table III-2', unverified:true },
+      { name:'hazardRadius',   spec:'1-10X', flag:'M',
+        help:'Hazard-area radius (e.g., 10KM) — verify against Table III-2', unverified:true },
+      { name:'hazardDuration', spec:'1-10X', flag:'O',
+        help:'Hazard-area duration (e.g., 2-6DAY) — verify against Table III-2', unverified:true }
+    ]
+  },
+
+  /* ===== PAPAX — Hazard area location for weather period  [Table III-2 — partial] =====
+     §3.1: NBC3 CHEM samples carry a DTG plus optional location grid(s). */
+  PAPAX: {
+    desc: 'Hazard-area location for the weather period', v1:true, unverified:true,
+    fields: [
+      { name:'dtg',       spec:'14AN', flag:'M', type:'dtg',
+        help:'Reference DTG' },
+      { name:'location1', spec:'1-30X', flag:'O',
+        help:'Hazard-area location (grid/place) — verify against Table III-2', unverified:true }
+    ]
+  },
+
+  /* ===== TANGO — Terrain & vegetation  [Table III-2 — partial] =====
+     §3.1: open enumeration until Table III-2 is fully transcribed. */
+  TANGO: {
+    desc: 'Terrain / topography & vegetation', v1:true, unverified:true,
+    fields: [
+      { name:'terrain',    spec:'1-10A', flag:'M', enumKey:'tangoTerrain',
+        help:'Terrain class (e.g., FLAT)' },
+      { name:'vegetation', spec:'1-10A', flag:'M', enumKey:'tangoVegetation',
+        help:'Vegetation class (e.g., URBAN)' }
+    ]
+  },
+
+  /* ===== YANKEE — Downwind direction & speed  [Table III-2] ===== */
+  YANKEE: {
+    desc: 'Downwind direction & speed', v1:true,
+    fields: [
+      { name:'direction', spec:'6-7AN', flag:'M',
+        help:'Direction + unit (e.g., 270DGT for degrees, mils form NNNNMLG)' },
+      { name:'speed',     spec:'6-7AN', flag:'M',
+        help:'Speed + unit (e.g., 015KPH)' }
+    ]
+  },
+
+  /* ===== ZULU — Actual weather conditions  [Table III-2 — partial] =====
+     §3.1/§8(2): exact sub-field meanings not pinned down in this doc.
+     Transcribed as positional free-form per CHEM samples. */
+  ZULU: {
+    desc: 'Actual weather conditions', v1:true, unverified:true,
+    fields: [
+      { name:'stability',    spec:'1-3X', flag:'M',
+        help:'Air stability category (e.g., 4) — verify against Table III-2', unverified:true },
+      { name:'temperature',  spec:'1-6X', flag:'M',
+        help:'Temperature (e.g., 10C, 18C) — verify against Table III-2', unverified:true },
+      { name:'humidity',     spec:'1-3X', flag:'O',
+        help:'Humidity / cloud cover index — verify against Table III-2', unverified:true },
+      { name:'wind',         spec:'1-3X', flag:'O',
+        help:'Wind / surface condition index — verify against Table III-2', unverified:true },
+      { name:'precip',       spec:'1-3X', flag:'O',
+        help:'Precipitation / weather index — verify against Table III-2', unverified:true }
+    ]
+  },
+
+  /* ===== GENTEXT — General text  [Table III-1/III-2] =====
+     Free-text body; tokenizer must not choke on spaces or commas. */
+  GENTEXT: {
+    desc: 'General text', v1:true,
+    fields: [
+      { name:'tag',  spec:'1-30X', flag:'M',
+        help:'Text tag (e.g., CBRNINFO)' },
+      { name:'text', spec:'1-200X', flag:'M',
+        help:'Free text (may contain spaces and commas)' }
+    ]
+  }
+};
+
+/* Forward-use set names listed in Table III-1 but not used by
+   CHEM NBC1/2/3 in v1. Kept for the Reference view. */
+App.SetDefsForward = {
+  CHARLIE:    'DTG of the report or observation and end of the event',
+  HOTEL:      'Type of nuclear burst',
+  JULIET:     'Flash-to-bang time (seconds)',
+  KILO:       'Crater description',
+  LIMA:       'Nuclear burst angular cloud width at H+5 min',
+  MIKE:       'Stabilized cloud measurement at H+10 min',
+  MIKER:      'Description and status of ROTA event',
+  NOVEMBER:   'Estimated nuclear yield (kt)',
+  OSCAR:      'Reference DTG for estimated contour lines',
+  PAPAB:      'Detailed fallout hazard prediction parameters',
+  PAPAC:      'Radar-determined external contour of radioactive cloud',
+  PAPAD:      'Radar-determined downwind direction of radioactive cloud',
+  QUEBEC:     'Location/type of reading, sample, detection',
+  ROMEO:      'Level of contamination, dose-rate trend, decay-rate trend',
+  SIERRA:     'DTG of reading or initial detection',
+  WHISKEY:    'Sensor information',
+  XRAYA:      'Actual contour information',
+  XRAYB:      'Predicted contour information'
+};
+
+/* ============================================================
+   PER-REPORT SET MEMBERSHIP  [§3.2 of requirements; Appendix E]
+   M = mandatory, O = optional. §3.2 caveats: confirm against
+   Table III-2's per-report requirements, not just the samples.
+   ============================================================ */
+App.ReportTypes = {
+  NBC1_CHEM: {
+    label:'NBC1 CHEM — observer\'s report',
+    sets: [
+      ['BRAVO','M'], ['DELTA','M'], ['FOXTROT','O'], ['GOLF','M'],
+      ['INDIA','M'], ['TANGO','M'], ['YANKEE','O'], ['ZULU','O']
+    ]
+  },
+  NBC2_CHEM: {
+    label:'NBC2 CHEM — evaluated data',
+    sets: [
+      ['ALFA','M'], ['DELTA','M'], ['FOXTROT','M'], ['GOLF','M'],
+      ['INDIA','M'], ['TANGO','M'], ['YANKEE','O'], ['ZULU','O']
+    ]
+  },
+  NBC3_CHEM: {
+    label:'NBC3 CHEM — predicted hazard warning',
+    sets: [
+      ['ALFA','M'], ['DELTA','M'], ['FOXTROT','M'], ['GOLF','O'],
+      ['INDIA','M'], ['PAPAA','M'], ['PAPAX','M'], ['YANKEE','O'],
+      ['ZULU','O'], ['GENTEXT','O']
+    ]
+  }
+};
+
+/* ============================================================
+   TOKENIZER  [§2.1 of requirements]
+   Input: a report string. Output: [{setName, fields:[string,...]}, ...]
+   - sets terminated by `//`
+   - fields separated by `/` within a set
+   - `-` is the empty-field placeholder (kept verbatim in fields[])
+   - leading/trailing whitespace per line is stripped; blank lines OK
+   - GENTEXT text may contain spaces/commas — the tokenizer must
+     not choke on these (the `/` is the only field separator).
+   ============================================================ */
+App.Tokenizer = (function(){
+  function tokenize(input){
+    if (input == null) return [];
+    const sets = [];
+    // Split on `//`. Each non-empty chunk is a set line.
+    // We do NOT split on newlines; the canonical terminator is `//`.
+    const raw = String(input).split('//');
+    for (let i=0; i<raw.length; i++){
+      let chunk = raw[i].trim();
+      // Strip any whitespace including newlines between set terminators.
+      chunk = chunk.replace(/^\s+|\s+$/g,'');
+      if (!chunk) continue;
+      // Split into setname + fields by `/`.
+      const parts = chunk.split('/');
+      const setName = parts.shift().toUpperCase();
+      // Field values preserved verbatim (case sensitive); we trim the
+      // set-name only because the manual's set names are uppercase.
+      sets.push({ setName, fields: parts });
+      App.Log.add('tok', setName, parts);
+    }
+    return sets;
+  }
+  return { tokenize };
+})();
+
+/* ============================================================
+   FORMATTER  [§2.1 / §3.4]
+   Input: [{setName, fields:[string,...]}] or structured model.
+   Output: canonical report string — one set per line, each
+   ending in `//`, fields joined by `/`, empty fields kept as `-`.
+   ============================================================ */
+App.Formatter = (function(){
+  function formatSet(set){
+    const fields = set.fields.map(f => (f === '' || f == null) ? '-' : String(f));
+    return set.setName + '/' + fields.join('/') + '//';
+  }
+  function format(sets){
+    return sets.map(formatSet).join('\n');
+  }
+  return { format, formatSet };
+})();
+
+/* ============================================================
+   DECODER + VALIDATOR  [§3.3, §3.4]
+   Maps a tokenized set's raw fields against its SetDefs entry,
+   producing structured-and-validated output:
+   {
+     setName, def, decoded:[{name, raw, value, decodedLabel, flag,
+       valid, warnings:[], errors:[], unverified:bool,
+       repeatIndex?, repeatOf?:'group'|'field'}],
+     errors:[], warnings:[]
+   }
+   Handles:
+   - FOXTROT pair repeats (repeatGroup) up to 6
+   - INDIA field-4 repeats (fieldRepeatable) up to 2
+   - GENTEXT free-text — joins any extra `/`-split chunks back
+     into a single text field so commas/spaces survive round-trip.
+   ============================================================ */
+App.Decoder = (function(){
+
+  function decodeFieldValue(raw, fieldDef){
+    if (raw === '-' || raw == null || raw === ''){
+      return { raw:(raw==null?'':raw), empty:true, valid:fieldDef.flag!=='M' };
+    }
+    const out = { raw, empty:false, valid:true, warnings:[], errors:[], unverified:false };
+
+    // Type-spec validation: numeric/alpha/X/AN length.
+    let spec = fieldDef.spec;
+    if (fieldDef.altSpec){
+      // Try primary spec first; if it fails, try altSpec (e.g., GOLF qty
+      // is 1-3N OR 3A enum).
+      const a = App.Validators.validate(raw, fieldDef.spec);
+      const b = App.Validators.validate(raw, fieldDef.altSpec);
+      if (!a.ok && !b.ok){
+        out.errors.push('type mismatch: not '+fieldDef.spec+' and not '+fieldDef.altSpec);
+        out.valid = false;
+      }
+    } else {
+      const v = App.Validators.validate(raw, spec);
+      if (!v.ok){
+        out.errors.push('type mismatch: '+v.error+' (spec '+spec+')');
+        out.valid = false;
+      }
+    }
+
+    // Enumeration lookup (where applicable). For GOLF qty, raw may be
+    // either a number (1-3N) or a size enum value (3A); enum lookup
+    // only applies when it's an enum value, so missing-from-enum
+    // when the numeric path is valid is NOT a warning.
+    if (fieldDef.enumKey){
+      const e = (App.Enumerations[fieldDef.enumKey] || []).find(x => x.code === raw);
+      if (e){
+        out.decodedLabel = e.label;
+        if (e.unverified){ out.unverified = true;
+          out.warnings.push('value '+raw+' marked UNVERIFIED in source enumeration'); }
+      } else if (fieldDef.altSpec){
+        // No-op: probably the numeric branch.
+      } else {
+        out.unverified = true;
+        out.warnings.push('value '+raw+' not in enumeration — UNVERIFIED');
+      }
+    }
+
+    // Set-level unverified flag bubbles up onto each unverified field.
+    if (fieldDef.unverified){
+      out.unverified = true;
+      out.warnings.push('field meaning UNVERIFIED — see §8 open items');
+    }
+
+    return out;
+  }
+
+  function decodeSet(tok){
+    const def = App.SetDefs[tok.setName];
+    const result = {
+      setName: tok.setName, def, decoded: [], errors: [], warnings: [],
+      raw: tok.fields.slice()
+    };
+    if (!def){
+      result.errors.push('unknown set name: '+tok.setName);
+      // Still surface raw fields for visibility.
+      tok.fields.forEach((f,i)=>result.decoded.push(
+        { name:'field'+(i+1), raw:f, valid:false, errors:['unknown set'] }));
+      return result;
+    }
+
+    let fields = tok.fields.slice();
+
+    // GENTEXT: rejoin any extra chunks so commas/spaces inside the
+    // text body survive the `/`-split. (§7.3 tokenizer-tests requirement.)
+    if (tok.setName === 'GENTEXT' && fields.length > 2){
+      const head = fields.shift();
+      fields = [head, fields.join('/')];
+    }
+
+    // Handle repeatable structures.
+    if (def.repeatGroup){
+      // FOXTROT: pairs of (loc, qual) up to N.
+      const size = def.repeatGroup.end - def.repeatGroup.start + 1;
+      const maxRepeats = def.repeatGroup.max;
+      if (fields.length % size !== 0){
+        result.errors.push('FOXTROT group expects pairs of '+size+' fields, got '+fields.length);
+      }
+      const pairs = Math.floor(fields.length / size);
+      if (pairs > maxRepeats){
+        result.errors.push('repeat-group over max ('+pairs+' > '+maxRepeats+')');
+      }
+      for (let r=0; r<pairs; r++){
+        for (let k=0; k<size; k++){
+          const fDef = def.fields[k];
+          const raw = fields[r*size + k];
+          const d = decodeFieldValue(raw, fDef);
+          result.decoded.push(Object.assign({ name:fDef.name, flag:fDef.flag,
+            repeatIndex:r, repeatOf:'group' }, d));
+          if (d.errors) result.errors.push(...d.errors.map(e=>fDef.name+'#'+(r+1)+': '+e));
+          if (d.warnings) result.warnings.push(...d.warnings.map(w=>fDef.name+'#'+(r+1)+': '+w));
+        }
+      }
+    } else if (def.fieldRepeatable){
+      // INDIA: field 4 repeatable up to 2.
+      const idx = def.fieldRepeatable.index;
+      const max = def.fieldRepeatable.max;
+      const baseLen = def.fields.length;
+      // Decode the first `baseLen` fields normally.
+      for (let i=0; i<baseLen; i++){
+        const fDef = def.fields[i];
+        const raw = (i < fields.length) ? fields[i] : '';
+        if (raw === '' && fDef.flag === 'M'){
+          result.errors.push(fDef.name+': missing mandatory');
+        }
+        const d = decodeFieldValue(raw, fDef);
+        result.decoded.push(Object.assign({ name:fDef.name, flag:fDef.flag }, d));
+        if (d.errors) result.errors.push(...d.errors.map(e=>fDef.name+': '+e));
+        if (d.warnings) result.warnings.push(...d.warnings.map(w=>fDef.name+': '+w));
+      }
+      // Any extra fields beyond baseLen are additional occurrences of
+      // the repeatable field.
+      const extras = fields.length - baseLen;
+      if (extras > 0){
+        if (extras > max - 1){
+          result.errors.push('field '+def.fields[idx].name+' over max ('+(extras+1)+' > '+max+')');
+        }
+        const fDef = def.fields[idx];
+        for (let r=0; r<extras; r++){
+          const raw = fields[baseLen + r];
+          const d = decodeFieldValue(raw, fDef);
+          result.decoded.push(Object.assign({ name:fDef.name, flag:fDef.flag,
+            repeatIndex:r+1, repeatOf:'field' }, d));
+          if (d.errors) result.errors.push(...d.errors.map(e=>fDef.name+'#'+(r+2)+': '+e));
+          if (d.warnings) result.warnings.push(...d.warnings.map(w=>fDef.name+'#'+(r+2)+': '+w));
+        }
+      }
+    } else {
+      // Simple positional decode.
+      const expected = def.fields.length;
+      if (fields.length > expected){
+        result.warnings.push('extra fields beyond definition: '+(fields.length-expected));
+      }
+      for (let i=0; i<expected; i++){
+        const fDef = def.fields[i];
+        const raw = (i < fields.length) ? fields[i] : '';
+        if ((raw === '' || raw == null) && fDef.flag === 'M'){
+          result.errors.push(fDef.name+': missing mandatory');
+          result.decoded.push({ name:fDef.name, flag:fDef.flag, raw:'', empty:true, valid:false,
+            errors:['missing mandatory'] });
+          continue;
+        }
+        const d = decodeFieldValue(raw, fDef);
+        result.decoded.push(Object.assign({ name:fDef.name, flag:fDef.flag }, d));
+        if (d.errors) result.errors.push(...d.errors.map(e=>fDef.name+': '+e));
+        if (d.warnings) result.warnings.push(...d.warnings.map(w=>fDef.name+': '+w));
+      }
+    }
+    return result;
+  }
+
+  function decodeReport(toks){
+    return toks.map(decodeSet);
+  }
+
+  // Validate report against report-type set membership (M/O).
+  function validateReport(toks, reportType){
+    const issues = { errors:[], warnings:[] };
+    const def = App.ReportTypes[reportType];
+    if (!def){ issues.errors.push('unknown report type '+reportType); return issues; }
+    const present = new Set(toks.map(t=>t.setName));
+    for (const [setName, flag] of def.sets){
+      if (flag === 'M' && !present.has(setName)){
+        issues.errors.push('missing mandatory set '+setName);
+      }
+    }
+    for (const t of toks){
+      const inDef = def.sets.some(([n])=>n===t.setName);
+      if (!inDef){
+        issues.warnings.push('set '+t.setName+' not in '+reportType+' set list — UNVERIFIED');
+      }
+    }
+    return issues;
+  }
+
+  return { decodeFieldValue, decodeSet, decodeReport, validateReport };
+})();
+
+/* ============================================================
+   SHELL  [§0.4]
+   - Module registry (R-0.4.3): modules register with the shell
+   - Navigation between Home / module views / tools
+   - Shared services: clipboard, file download, file import,
+     scenario save/load, training-banner enforcement
+   ============================================================ */
+App.Shell = (function(){
+  const modules = []; // {id, label, desc, mountId, mount(), unmount()}
+  function registerModule(mod){
+    modules.push(mod);
+    App.Log.add('shell','registered module',mod.id);
+  }
+  function listModules(){ return modules.slice(); }
+
+  function navigate(viewId){
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    const el = document.getElementById('view-'+viewId);
+    if (!el){ navigate('home'); return; }
+    el.classList.add('active');
+    document.getElementById('btnBack').style.visibility = (viewId==='home')?'hidden':'visible';
+    // Enforce R-0.2.1: banner is permanent. Re-assert in case any code touched it.
+    document.getElementById('trainingBanner').textContent = 'TRAINING USE ONLY — Not for operational use';
+    window.scrollTo(0,0);
+    App.Log.add('nav', viewId);
+  }
+
+  function copyToClipboard(text){
+    // Modern path
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      return navigator.clipboard.writeText(text).then(()=>toast('Copied'));
+    }
+    // Fallback (older iOS Safari)
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position='fixed'; ta.style.top='-1000px';
+    document.body.appendChild(ta); ta.select();
+    let ok=false;
+    try{ ok = document.execCommand('copy'); }catch(e){}
+    document.body.removeChild(ta);
+    toast(ok?'Copied':'Copy failed');
+    return Promise.resolve();
+  }
+
+  // Header prepended to every exported artifact per §6.5.
+  function exportHeader(){
+    return '# TRAINING USE ONLY — Not for operational use\n' +
+           '# Source: FM 3-11.3 / MCWP 3-37.2A / NTTP 3-11.25 / AFTTP(I) 3-2.56 (2 Feb 2006)\n';
+  }
+
+  function downloadText(filename, content){
+    const blob = new Blob([exportHeader()+content], { type:'text/plain;charset=utf-8' });
+    triggerDownload(blob, filename);
+  }
+  function downloadJSON(filename, obj){
+    const payload = {
+      meta: {
+        product: 'Mobile CBRN App',
+        notice:  'TRAINING USE ONLY — Not for operational use',
+        source:  'FM 3-11.3 / MCWP 3-37.2A / NTTP 3-11.25 / AFTTP(I) 3-2.56 (2 Feb 2006)',
+        savedAt: new Date().toISOString(),
+        schema:  'cbrn-scenario/1'
+      },
+      scenario: obj
+    };
+    const text = JSON.stringify(payload, null, 2);
+    const blob = new Blob([text], { type:'application/json;charset=utf-8' });
+    triggerDownload(blob, filename);
+  }
+  function triggerDownload(blob, filename){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    // iOS Safari opens via share sheet if download attribute is honored.
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 250);
+  }
+  function readJSONFile(file){
+    return new Promise((resolve,reject)=>{
+      const fr = new FileReader();
+      fr.onerror = ()=>reject(fr.error);
+      fr.onload = ()=>{
+        try{
+          const obj = JSON.parse(fr.result);
+          if (obj && obj.meta && obj.meta.schema === 'cbrn-scenario/1' && obj.scenario){
+            resolve(obj.scenario);
+          } else if (obj && (obj.reportType || obj.sets)){
+            resolve(obj); // tolerate bare scenario without meta envelope
+          } else {
+            reject(new Error('not a cbrn-scenario/1 file'));
+          }
+        }catch(e){ reject(e); }
+      };
+      fr.readAsText(file);
+    });
+  }
+
+  return { registerModule, listModules, navigate, copyToClipboard,
+           downloadText, downloadJSON, readJSONFile, exportHeader };
+})();
+
+/* ============================================================
+   MODULE 1 — Report Builder / Parser
+   Construct / Parse / Reference views.
+   Module state held only in memory (R-5.4).
+   ============================================================ */
+App.Module1 = (function(){
+
+  const state = {
+    reportType: 'NBC1_CHEM',
+    // sets: array of {setName, fields: string[]} matching the
+    // report-type's set list, in order. Optional sets present in
+    // state but empty are omitted from output.
+    sets: {}     // map setName -> [{fields:string[]}, ...] (arrays
+                 // to support FOXTROT having one entry per pair).
+  };
+
+  function getReportTypeDef(){ return App.ReportTypes[state.reportType]; }
+
+  function ensureStateForType(){
+    state.sets = {};
+    for (const [setName, flag] of getReportTypeDef().sets){
+      state.sets[setName] = initSet(setName);
+    }
+  }
+
+  function initSet(setName){
+    const def = App.SetDefs[setName];
+    if (!def) return [{ fields: [] }];
+    if (def.repeatGroup){
+      // FOXTROT — start with one pair.
+      return [{ fields: new Array(def.fields.length).fill('') }];
+    }
+    if (def.fieldRepeatable){
+      // INDIA — one occurrence, base length, no extra detect.
+      return [{ fields: new Array(def.fields.length).fill('') }];
+    }
+    return [{ fields: new Array(def.fields.length).fill('') }];
+  }
+
+  function setReportType(t){
+    state.reportType = t;
+    ensureStateForType();
+    renderConstruct();
+  }
+
+  /* ---- Construct form rendering ---- */
+  function renderConstruct(){
+    const root = document.getElementById('constructForm');
+    root.innerHTML = '';
+    for (const [setName, flag] of getReportTypeDef().sets){
+      root.appendChild(renderSetCard(setName, flag));
+    }
+    updatePreview();
+  }
+
+  function renderSetCard(setName, flag){
+    const def = App.SetDefs[setName];
+    const card = document.createElement('div');
+    card.className = 'set';
+    const header = document.createElement('div');
+    header.className = 'set-h';
+    header.innerHTML =
+      '<div class="set-name">'+setName+'</div>'+
+      '<div class="set-desc">'+(def?def.desc:'')+
+        ' <span class="set-flag">['+flag+']</span>'+
+        (def && def.unverified? ' <span class="tag unverified">UNVERIFIED</span>':'')+
+      '</div>';
+    card.appendChild(header);
+
+    if (!def){
+      card.appendChild(textNode('(no definition)'));
+      return card;
+    }
+
+    // FOXTROT repeat-group rendering: array of pair blocks.
+    if (def.repeatGroup){
+      const occs = state.sets[setName];
+      occs.forEach((occ, idx)=>{
+        const block = document.createElement('div');
+        block.className = 'repeat-block';
+        const hd = document.createElement('div');
+        hd.className = 'repeat-ctrl';
+        hd.innerHTML = '<span class="pill">pair '+(idx+1)+' / '+def.repeatGroup.max+'</span>';
+        if (occs.length > 1){
+          const rm = mkBtn('Remove', 'ghost', ()=>{
+            occs.splice(idx,1); renderConstruct();
+          });
+          hd.appendChild(rm);
+        }
+        block.appendChild(hd);
+        def.fields.forEach((fDef, fi)=>{
+          block.appendChild(renderField(fDef, occ.fields[fi]||'', v=>{
+            occ.fields[fi] = v; updatePreview();
+          }));
+        });
+        card.appendChild(block);
+      });
+      if (occs.length < def.repeatGroup.max){
+        const add = mkBtn('+ Add pair', 'secondary', ()=>{
+          occs.push({ fields: new Array(def.fields.length).fill('') });
+          renderConstruct();
+        });
+        card.appendChild(add);
+      }
+      return card;
+    }
+
+    // INDIA field-4 repeatable: render base fields plus an array of
+    // extra-detect occurrences.
+    if (def.fieldRepeatable){
+      const occ = state.sets[setName][0];
+      const baseLen = def.fields.length;
+      def.fields.forEach((fDef, fi)=>{
+        card.appendChild(renderField(fDef, occ.fields[fi]||'', v=>{
+          occ.fields[fi] = v; updatePreview();
+        }));
+      });
+      const idx = def.fieldRepeatable.index;
+      const fDef = def.fields[idx];
+      const extras = Math.max(0, occ.fields.length - baseLen);
+      for (let r=0; r<extras; r++){
+        const i = baseLen + r;
+        const wrap = document.createElement('div');
+        wrap.className = 'repeat-block';
+        const hd = document.createElement('div');
+        hd.className = 'repeat-ctrl';
+        hd.innerHTML = '<span class="pill">'+fDef.name+' #'+(r+2)+' / '+def.fieldRepeatable.max+'</span>';
+        const rm = mkBtn('Remove','ghost',()=>{
+          occ.fields.splice(i,1); renderConstruct();
+        });
+        hd.appendChild(rm); wrap.appendChild(hd);
+        wrap.appendChild(renderField(fDef, occ.fields[i]||'', v=>{
+          occ.fields[i] = v; updatePreview();
+        }));
+        card.appendChild(wrap);
+      }
+      if (extras + 1 < def.fieldRepeatable.max){
+        card.appendChild(mkBtn('+ Add '+fDef.name, 'secondary', ()=>{
+          occ.fields.push(''); renderConstruct();
+        }));
+      }
+      return card;
+    }
+
+    // Plain set.
+    const occ = state.sets[setName][0];
+    def.fields.forEach((fDef, fi)=>{
+      card.appendChild(renderField(fDef, occ.fields[fi]||'', v=>{
+        occ.fields[fi] = v; updatePreview();
+      }));
+    });
+    return card;
+  }
+
+  function renderField(fDef, value, onChange){
+    const wrap = document.createElement('div'); wrap.className = 'field';
+    const lbl = document.createElement('div'); lbl.className = 'lbl';
+    const flag = fDef.flag;
+    const flagTagCls = flag==='M'?'mandatory':(flag==='C'?'conditional':'optional');
+    lbl.innerHTML = '<span class="name">'+fDef.name+
+      ' <span class="tag '+flagTagCls+'">'+flag+'</span>'+
+      (fDef.unverified?' <span class="tag unverified">UNVERIFIED</span>':'')+
+      '</span><span class="meta">'+fDef.spec+
+      (fDef.altSpec?' | '+fDef.altSpec:'')+'</span>';
+    wrap.appendChild(lbl);
+
+    let input;
+    if (fDef.enumKey && !fDef.altSpec){
+      input = document.createElement('select');
+      input.appendChild(mkOpt('', '— (none)'));
+      (App.Enumerations[fDef.enumKey]||[]).forEach(e=>{
+        const o = mkOpt(e.code, e.code + ' — ' + e.label + (e.unverified?' [UNVERIFIED]':''));
+        input.appendChild(o);
+      });
+      input.value = value || '';
+    } else {
+      input = document.createElement('input');
+      input.type = 'text';
+      input.value = value || '';
+      input.autocapitalize = 'characters';
+      input.autocomplete = 'off';
+      input.spellcheck = false;
+      if (fDef.enumKey && fDef.altSpec){
+        // GOLF qty — show enum hints in placeholder.
+        const codes = (App.Enumerations[fDef.enumKey]||[]).map(e=>e.code).join('/');
+        input.placeholder = 'number or '+codes;
+      } else if (fDef.type === 'dtg'){
+        input.placeholder = 'DDHHMMZmmmYYYY e.g. 201405ZSEP2005';
+      }
+    }
+    input.addEventListener('input', ()=>onChange(input.value));
+    input.addEventListener('change', ()=>onChange(input.value));
+    wrap.appendChild(input);
+
+    if (fDef.help){
+      const h = document.createElement('div'); h.className='help'; h.textContent=fDef.help;
+      wrap.appendChild(h);
+    }
+    return wrap;
+  }
+
+  function mkBtn(text, cls, fn){
+    const b = document.createElement('button'); b.className = cls; b.textContent = text;
+    b.addEventListener('click', fn); return b;
+  }
+  function mkOpt(v, t){ const o = document.createElement('option'); o.value=v; o.textContent=t; return o; }
+  function textNode(t){ const s = document.createElement('div'); s.textContent=t; return s; }
+
+  /* ---- Build canonical tokens from state, then format ---- */
+  // Normalization rule (per §3.4.3): trailing fields the user never
+  // filled in (''  default) are dropped from output. Fields the user
+  // explicitly set to '-' (the manual's empty-field placeholder) are
+  // preserved. Internal '' (followed by any later non-empty) becomes
+  // '-' so positional alignment is preserved. This matches both
+  // sample conventions: PAPAA/01KM/-/10KM/-// (trailing '-' explicit)
+  // and INDIA/SURF/NERV/NP// (trailing field omitted entirely).
+  function normalizeFields(raw){
+    let f = raw.slice();
+    while (f.length > 0 && f[f.length-1] === '') f.pop();
+    return f.map(v => v === '' ? '-' : String(v));
+  }
+
+  function buildTokens(){
+    const toks = [];
+    for (const [setName, flag] of getReportTypeDef().sets){
+      const def = App.SetDefs[setName];
+      const occs = state.sets[setName] || [];
+      if (def.repeatGroup){
+        const flat = occs.flatMap(o=>o.fields);
+        const anyValue = flat.some(v=>v && v!=='');
+        if (!anyValue && flag !== 'M') continue;
+        toks.push({ setName, fields: normalizeFields(flat) });
+      } else {
+        const occ = occs[0] || { fields: [] };
+        const anyValue = occ.fields.some(v=>v && v!=='');
+        if (!anyValue && flag !== 'M') continue;
+        toks.push({ setName, fields: normalizeFields(occ.fields) });
+      }
+    }
+    return toks;
+  }
+
+  function updatePreview(){
+    const toks = buildTokens();
+    const text = App.Formatter.format(toks);
+    document.getElementById('previewBox').textContent = text || '(empty)';
+    // Validation summary
+    const decoded = App.Decoder.decodeReport(toks);
+    const validate = App.Decoder.validateReport(toks, state.reportType);
+    const errs = [], warns = [];
+    decoded.forEach(d=>{
+      d.errors.forEach(e=>errs.push(d.setName+': '+e));
+      d.warnings.forEach(w=>warns.push(d.setName+': '+w));
+    });
+    errs.push(...validate.errors);
+    warns.push(...validate.warnings);
+
+    const box = document.getElementById('validationBox');
+    box.innerHTML = '';
+    if (errs.length){
+      box.innerHTML += '<div class="err"><strong>'+errs.length+' error(s):</strong><ul>'+
+        errs.map(e=>'<li>'+escapeHTML(e)+'</li>').join('')+'</ul></div>';
+    }
+    if (warns.length){
+      box.innerHTML += '<div class="warn"><strong>'+warns.length+' warning(s) — UNVERIFIED:</strong><ul>'+
+        warns.map(e=>'<li>'+escapeHTML(e)+'</li>').join('')+'</ul></div>';
+    }
+    if (!errs.length && !warns.length){
+      box.innerHTML = '<div class="ok">All fields validate.</div>';
+    }
+  }
+
+  function escapeHTML(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  /* ---- Parse view ---- */
+  function renderParse(text){
+    const out = document.getElementById('parseOutput');
+    out.innerHTML = '';
+    if (!text || !text.trim()){
+      out.innerHTML = '<p class="notes">(no input)</p>';
+      document.getElementById('parseLoadEditBtn').disabled = true;
+      return;
+    }
+    const toks = App.Tokenizer.tokenize(text);
+    const decoded = App.Decoder.decodeReport(toks);
+
+    // Heuristic report-type detection — for validating M/O presence.
+    const typeGuess = guessReportType(toks);
+    const validate = typeGuess ? App.Decoder.validateReport(toks, typeGuess) : { errors:[], warnings:[] };
+
+    const summary = document.createElement('div'); summary.className = 'card';
+    summary.innerHTML = '<h3>Summary</h3>'+
+      '<div>Sets parsed: <strong>'+toks.length+'</strong></div>'+
+      '<div>Inferred report type: <strong>'+(typeGuess||'(unknown)')+'</strong></div>';
+    out.appendChild(summary);
+
+    decoded.forEach(d=>out.appendChild(renderParsedSet(d)));
+
+    if (validate.errors.length || validate.warnings.length){
+      const v = document.createElement('div'); v.className = 'card';
+      v.innerHTML = '<h3>Report-level checks ('+(typeGuess||'unknown')+')</h3>'+
+        (validate.errors.length?'<div class="err"><ul>'+validate.errors.map(e=>'<li>'+escapeHTML(e)+'</li>').join('')+'</ul></div>':'')+
+        (validate.warnings.length?'<div class="warn"><ul>'+validate.warnings.map(e=>'<li>'+escapeHTML(e)+'</li>').join('')+'</ul></div>':'');
+      out.appendChild(v);
+    }
+
+    // Save parsed state so "Load into editor" can use it.
+    parseLastDecoded = { toks, decoded, typeGuess };
+    document.getElementById('parseLoadEditBtn').disabled = !typeGuess;
+  }
+  let parseLastDecoded = null;
+
+  function renderParsedSet(d){
+    const wrap = document.createElement('div'); wrap.className = 'parsed-set';
+    const h = document.createElement('div'); h.className='h';
+    h.textContent = d.setName + (d.def? ' — '+d.def.desc : ' (unknown set)');
+    if (d.def && d.def.unverified){
+      const tag = document.createElement('span'); tag.className='tag unverified';
+      tag.textContent='UNVERIFIED'; h.appendChild(document.createTextNode(' ')); h.appendChild(tag);
+    }
+    wrap.appendChild(h);
+    d.decoded.forEach(f=>{
+      const row = document.createElement('div'); row.className = 'parsed-field';
+      if (!f.valid) row.classList.add('bad');
+      else if (f.unverified) row.classList.add('warn');
+      const k = document.createElement('div'); k.className='k';
+      k.textContent = f.name + (f.repeatIndex!=null?' #'+(f.repeatIndex+1):'') +
+        (f.flag?' ['+f.flag+']':'');
+      const v = document.createElement('div'); v.className='v';
+      const raw = (f.raw==null||f.raw==='')?'-':f.raw;
+      v.innerHTML = '<span class="raw">'+escapeHTML(raw)+'</span>'+
+        (f.decodedLabel?'<span class="decoded">'+escapeHTML(f.decodedLabel)+'</span>':'')+
+        (f.unverified?' <span class="tag unverified">UNVERIFIED</span>':'')+
+        ((f.errors&&f.errors.length)?'<span class="decoded" style="color:var(--err)">'+
+           escapeHTML(f.errors.join('; '))+'</span>':'')+
+        ((f.warnings&&f.warnings.length)?'<span class="decoded" style="color:var(--warn)">'+
+           escapeHTML(f.warnings.join('; '))+'</span>':'');
+      row.appendChild(k); row.appendChild(v);
+      wrap.appendChild(row);
+    });
+    if (d.errors.length){
+      const e = document.createElement('div'); e.style.color='var(--err)';
+      e.style.fontSize='12px'; e.style.marginTop='4px';
+      e.textContent='Errors: '+d.errors.join('; ');
+      wrap.appendChild(e);
+    }
+    return wrap;
+  }
+
+  // Pick the report type whose mandatory set list best matches present
+  // sets. Returns null if confidence is too low.
+  function guessReportType(toks){
+    const present = new Set(toks.map(t=>t.setName));
+    let best = null, bestScore = -1;
+    for (const [id, def] of Object.entries(App.ReportTypes)){
+      // +1 for every mandatory present, -1 for every mandatory missing.
+      let s = 0;
+      for (const [n, f] of def.sets){
+        if (f === 'M'){ s += present.has(n) ? 1 : -1; }
+        else if (present.has(n)) s += 0.5;
+      }
+      // discriminator: ALFA presence rules NBC1 out
+      if (id === 'NBC1_CHEM' && present.has('ALFA')) s -= 2;
+      // discriminator: PAPAA/PAPAX → NBC3
+      if (id === 'NBC3_CHEM' && (present.has('PAPAA')||present.has('PAPAX'))) s += 2;
+      if (s > bestScore){ bestScore = s; best = id; }
+    }
+    return bestScore >= 1 ? best : null;
+  }
+
+  /* ---- Load parsed into editor (parse→edit→construct, R-4.2.4) ---- */
+  function loadParsedIntoEditor(){
+    if (!parseLastDecoded || !parseLastDecoded.typeGuess) return;
+    const t = parseLastDecoded.typeGuess;
+    state.reportType = t;
+    document.getElementById('reportType').value = t;
+    ensureStateForType();
+    // Map tokens onto state.sets where possible.
+    for (const tok of parseLastDecoded.toks){
+      const def = App.SetDefs[tok.setName];
+      if (!def || !state.sets[tok.setName]) continue;
+      // Normalize empty placeholders back to ''.
+      const norm = tok.fields.map(f => f === '-' ? '' : f);
+      if (def.repeatGroup){
+        const size = def.repeatGroup.end - def.repeatGroup.start + 1;
+        const pairs = [];
+        for (let i=0; i<norm.length; i+=size){
+          pairs.push({ fields: norm.slice(i, i+size) });
+        }
+        state.sets[tok.setName] = pairs.length? pairs : [{ fields: new Array(size).fill('') }];
+      } else {
+        state.sets[tok.setName] = [{ fields: norm }];
+      }
+    }
+    document.querySelector('.tabs button[data-tab="construct"]').click();
+    renderConstruct();
+    toast('Loaded into editor');
+  }
+
+  /* ---- Reference view ---- */
+  function renderReference(){
+    const out = document.getElementById('referenceOut');
+    out.innerHTML = '';
+    out.appendChild(html('<p class="notes">Sets used by Module 1 v1 (CHEM NBC1/2/3):</p>'));
+    Object.entries(App.SetDefs).forEach(([name, def])=>{
+      const card = document.createElement('div'); card.className='ref-set';
+      card.innerHTML = '<h4>'+name+' <small style="color:#aaa;font-weight:400;font-size:11px">[v1]</small>'+
+        (def.unverified?' <span class="tag unverified">UNVERIFIED</span>':'')+'</h4>'+
+        '<div class="desc">'+escapeHTML(def.desc)+'</div>';
+      def.fields.forEach((f,i)=>{
+        let html = '<div class="ref-field"><span class="nm">'+(i+1)+'. '+f.name+'</span>'+
+          ' <span class="ty">['+f.flag+' '+f.spec+(f.altSpec?' | '+f.altSpec:'')+']</span>'+
+          (f.unverified?' <span class="tag unverified">UNVERIFIED</span>':'')+
+          (f.help?'<div class="desc" style="font-size:12px;margin-top:2px">'+escapeHTML(f.help)+'</div>':'');
+        if (f.enumKey){
+          const list = (App.Enumerations[f.enumKey]||[]).map(e=>{
+            return e.code+' = '+e.label+(e.unverified?' [UNVERIFIED]':'');
+          }).join('\n');
+          html += '<div class="ref-enum">'+escapeHTML(list)+'</div>';
+        }
+        html += '</div>';
+        const div = document.createElement('div'); div.innerHTML = html;
+        card.appendChild(div.firstChild);
+      });
+      if (def.repeatGroup){
+        card.appendChild(html2('<div class="desc" style="font-size:11px;margin-top:6px">Fields '+
+          (def.repeatGroup.start+1)+'–'+(def.repeatGroup.end+1)+' repeatable up to '+def.repeatGroup.max+' times.</div>'));
+      }
+      if (def.fieldRepeatable){
+        card.appendChild(html2('<div class="desc" style="font-size:11px;margin-top:6px">Field '+
+          (def.fieldRepeatable.index+1)+' repeatable up to '+def.fieldRepeatable.max+' times.</div>'));
+      }
+      out.appendChild(card);
+    });
+    out.appendChild(html('<hr class="sep"><p class="notes">Forward-use sets (in Table III-1, not used by CHEM NBC1/2/3 in v1):</p>'));
+    Object.entries(App.SetDefsForward).forEach(([name, desc])=>{
+      const card = document.createElement('div'); card.className='ref-set';
+      card.innerHTML = '<h4>'+name+'</h4><div class="desc">'+escapeHTML(desc)+'</div>';
+      out.appendChild(card);
+    });
+  }
+  function html(s){ const d=document.createElement('div'); d.innerHTML=s; return d.firstChild; }
+  function html2(s){ return html(s); }
+
+  /* ---- Scenario JSON ---- */
+  function scenarioFromState(){
+    return { reportType: state.reportType, sets: state.sets };
+  }
+  function stateFromScenario(sc){
+    if (!sc || !sc.reportType || !App.ReportTypes[sc.reportType]) throw new Error('bad scenario');
+    state.reportType = sc.reportType;
+    document.getElementById('reportType').value = sc.reportType;
+    ensureStateForType();
+    if (sc.sets){
+      for (const [name, occs] of Object.entries(sc.sets)){
+        if (state.sets[name]) state.sets[name] = occs;
+      }
+    }
+    renderConstruct();
+  }
+
+  /* ---- Sample loaders ---- */
+  function loadSample(){
+    // Sample fixtures mirror the manual's sample bytes — trailing
+    // optional fields are omitted (not '-') when the manual sample
+    // omits them, so a load → preview round-trips to the same string.
+    if (state.reportType === 'NBC1_CHEM'){
+      stateFromScenario({
+        reportType:'NBC1_CHEM',
+        sets:{
+          BRAVO:  [{fields:['32UNB062634','2500MLG']}],
+          DELTA:  [{fields:['201405ZSEP2005']}],
+          GOLF:   [{fields:['OBS','AIR','1','BML','-']}],
+          INDIA:  [{fields:['AIR','NERV','P','ACD']}],
+          TANGO:  [{fields:['FLAT','URBAN']}],
+          YANKEE: [{fields:['270DGT','015KPH']}],
+          ZULU:   [{fields:['4','10C','7','5','1']}]
+        }
+      });
+    } else if (state.reportType === 'NBC2_CHEM'){
+      stateFromScenario({
+        reportType:'NBC2_CHEM',
+        sets:{
+          ALFA:   [{fields:['US','A234','001','B']}],
+          DELTA:  [{fields:['201405ZSEP2005']}],
+          FOXTROT:[{fields:['32UNB058640','EE']}],
+          GOLF:   [{fields:['OBS','AIR','1','BML','-']}],
+          INDIA:  [{fields:['AIR','NERV','P','ACD']}],
+          TANGO:  [{fields:['FLAT','URBAN']}],
+          YANKEE: [{fields:['270DGT','015KPH']}],
+          ZULU:   [{fields:['4','10C','7','5','1']}]
+        }
+      });
+    } else if (state.reportType === 'NBC3_CHEM'){
+      // User-provided NBC3 sample per §7.1, plus DELTA/ALFA/PAPAX so
+      // the report-type-level M-set check passes (these aren't in the
+      // user sample fragment but are mandatory for NBC3).
+      stateFromScenario({
+        reportType:'NBC3_CHEM',
+        sets:{
+          ALFA:   [{fields:['US','A234','001','C']}],
+          DELTA:  [{fields:['201405ZSEP2005']}],
+          FOXTROT:[{fields:['33UUB206300','AA']}],
+          INDIA:  [{fields:['SURF','NERV','NP']}],
+          PAPAA:  [{fields:['01KM','-','10KM','-']}],
+          PAPAX:  [{fields:['201600ZSEP2005']}],
+          YANKEE: [{fields:['105DGT','009KPH']}],
+          ZULU:   [{fields:['4','18C','9','-','2']}],
+          GENTEXT:[{fields:['CBRNINFO','TYPE A, CASE 1']}]
+        }
+      });
+    }
+    toast('Sample loaded');
+  }
+
+  /* ---- Wire up + mount ---- */
+  function mount(){
+    document.getElementById('reportType').addEventListener('change', e=>setReportType(e.target.value));
+    document.querySelectorAll('#view-mod1 .tabs button').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        document.querySelectorAll('#view-mod1 .tabs button').forEach(x=>x.classList.remove('on'));
+        b.classList.add('on');
+        const tab = b.getAttribute('data-tab');
+        ['construct','parse','reference'].forEach(t=>{
+          document.getElementById('tab-'+t).style.display = (t===tab?'':'none');
+        });
+        if (tab === 'reference') renderReference();
+      });
+    });
+    document.getElementById('loadSampleBtn').addEventListener('click', loadSample);
+    document.getElementById('resetBtn').addEventListener('click', ()=>{
+      ensureStateForType(); renderConstruct(); toast('Reset');
+    });
+    document.getElementById('copyBtn').addEventListener('click', ()=>{
+      const text = App.Shell.exportHeader()+App.Formatter.format(buildTokens());
+      App.Shell.copyToClipboard(text);
+    });
+    document.getElementById('downloadBtn').addEventListener('click', ()=>{
+      App.Shell.downloadText(state.reportType+'.txt', App.Formatter.format(buildTokens()));
+      toast('Downloaded');
+    });
+    document.getElementById('saveScenarioBtn').addEventListener('click', ()=>{
+      App.Shell.downloadJSON(state.reportType+'.scenario.json', scenarioFromState());
+      toast('Scenario saved');
+    });
+    document.getElementById('loadScenarioBtn').addEventListener('click', ()=>{
+      document.getElementById('scenarioFile').click();
+    });
+    document.getElementById('scenarioFile').addEventListener('change', e=>{
+      const f = e.target.files && e.target.files[0]; if (!f) return;
+      App.Shell.readJSONFile(f).then(stateFromScenario).then(()=>toast('Scenario loaded'))
+        .catch(err=>toast('Load failed: '+err.message, 3000));
+      e.target.value = '';
+    });
+    document.getElementById('parseBtn').addEventListener('click', ()=>{
+      renderParse(document.getElementById('parseInput').value);
+    });
+    document.getElementById('parseLoadEditBtn').addEventListener('click', loadParsedIntoEditor);
+    document.getElementById('parseClearBtn').addEventListener('click', ()=>{
+      document.getElementById('parseInput').value = '';
+      document.getElementById('parseOutput').innerHTML = '';
+      document.getElementById('parseLoadEditBtn').disabled = true;
+    });
+    // "From photo": pulls a photo (camera or library) into the page so the
+    // user can long-press it and use iOS Live Text → Copy Text → paste.
+    // No OCR happens in JS — Live Text is system-provided.
+    const photoBtn   = document.getElementById('parsePhotoBtn');
+    const photoInput = document.getElementById('parsePhotoInput');
+    const photoBox   = document.getElementById('parsePhotoBox');
+    const photoImg   = document.getElementById('parsePhotoImg');
+    const photoClear = document.getElementById('parsePhotoClear');
+    let photoURL = null;
+    function clearPhoto(){
+      if (photoURL){ URL.revokeObjectURL(photoURL); photoURL = null; }
+      photoImg.removeAttribute('src');
+      photoBox.style.display = 'none';
+    }
+    photoBtn.addEventListener('click', ()=>photoInput.click());
+    photoInput.addEventListener('change', e=>{
+      const f = e.target.files && e.target.files[0];
+      if (!f) return;
+      clearPhoto();
+      photoURL = URL.createObjectURL(f);
+      photoImg.src = photoURL;
+      photoBox.style.display = '';
+      photoBox.scrollIntoView({behavior:'smooth', block:'start'});
+      toast('Long-press the image → Copy Text → paste above');
+      e.target.value = '';
+    });
+    photoClear.addEventListener('click', clearPhoto);
+
+    ensureStateForType();
+    renderConstruct();
+  }
+
+  return { mount, _state: state, _buildTokens: buildTokens, _renderParse: renderParse };
+})();
+
+/* Register Module 1 with the shell. */
+App.Shell.registerModule({
+  id: 'mod1',
+  label: 'Module 1 — Report Builder / Parser',
+  desc: 'Construct & parse CHEM NBC1/2/3 reports against the manual.',
+  mount: App.Module1.mount
+});
+
+/* ============================================================
+   TESTS  [§7.1–§7.5 of requirements]
+   - Round-trip fixtures from Figures E-1, E-2, E-3 and user sample
+   - Field-type validators
+   - Enumeration handling (UNVERIFIED rather than auto-correct)
+   - M/O/C enforcement
+   - Repeatable-field bounds
+   - Tokenizer edge cases
+   - Labeling (TRAINING USE ONLY visible + in export header)
+   ============================================================ */
+App.Tests = (function(){
+  const tests = [];
+  function add(name, fn){ tests.push({name, fn}); }
+  function assert(cond, msg){ if (!cond) throw new Error(msg||'assert failed'); }
+  function eq(a, b, msg){
+    if (a !== b) throw new Error((msg||'eq')+': got '+JSON.stringify(a)+' want '+JSON.stringify(b));
+  }
+  function deepEq(a, b, msg){
+    if (JSON.stringify(a) !== JSON.stringify(b))
+      throw new Error((msg||'deepEq')+': got '+JSON.stringify(a)+' want '+JSON.stringify(b));
+  }
+
+  /* ---- §7.3 Tokenizer tests ---- */
+  add('tokenizer: simple set line', ()=>{
+    const r = App.Tokenizer.tokenize('BRAVO/32UNB062634/2500MLG//');
+    eq(r.length, 1);
+    eq(r[0].setName, 'BRAVO');
+    deepEq(r[0].fields, ['32UNB062634','2500MLG']);
+  });
+  add('tokenizer: multiple sets joined', ()=>{
+    const r = App.Tokenizer.tokenize('BRAVO/x/y//GOLF/OBS/AIR/1/BML/-//');
+    eq(r.length, 2);
+    eq(r[1].setName, 'GOLF');
+    deepEq(r[1].fields, ['OBS','AIR','1','BML','-']);
+  });
+  add('tokenizer: empty-field hyphen preserved', ()=>{
+    const r = App.Tokenizer.tokenize('PAPAA/01KM/-/10KM/-//');
+    deepEq(r[0].fields, ['01KM','-','10KM','-']);
+  });
+  add('tokenizer: trailing/leading whitespace tolerated', ()=>{
+    const r = App.Tokenizer.tokenize('  \n BRAVO/x/y//   GOLF/OBS/AIR/1/BML/-//\n');
+    eq(r.length, 2);
+  });
+  add('tokenizer: GENTEXT body with comma & space preserved', ()=>{
+    const r = App.Tokenizer.tokenize('GENTEXT/CBRNINFO/TYPE A, CASE 1//');
+    eq(r[0].fields.length, 2);
+    const d = App.Decoder.decodeSet(r[0]);
+    eq(d.decoded[1].raw, 'TYPE A, CASE 1');
+  });
+  add('tokenizer + decoder: GENTEXT body with `/` is rejoined into one field', ()=>{
+    // Edge case: `/` inside free text would split at tokenizer; decoder
+    // rejoins trailing chunks so the text body survives unchanged.
+    const r = App.Tokenizer.tokenize('GENTEXT/CBRNINFO/PART A/PART B//');
+    eq(r[0].fields.length, 3);
+    const d = App.Decoder.decodeSet(r[0]);
+    eq(d.decoded[1].raw, 'PART A/PART B');
+  });
+  add('tokenizer: blank input → no sets', ()=>{
+    deepEq(App.Tokenizer.tokenize(''), []);
+    deepEq(App.Tokenizer.tokenize('   \n\n  '), []);
+  });
+
+  /* ---- §7.2 Field-validation tests ---- */
+  add('validator: 3N rejects non-numeric', ()=>{
+    eq(App.Validators.validate('abc','3N').ok, false);
+  });
+  add('validator: 3N accepts exactly 3 digits', ()=>{
+    eq(App.Validators.validate('270','3N').ok, true);
+  });
+  add('validator: 1-3N accepts 1..3 digits', ()=>{
+    eq(App.Validators.validate('1','1-3N').ok, true);
+    eq(App.Validators.validate('123','1-3N').ok, true);
+    eq(App.Validators.validate('1234','1-3N').ok, false);
+  });
+  add('validator: 2A exactly 2 alpha', ()=>{
+    eq(App.Validators.validate('US','2A').ok, true);
+    eq(App.Validators.validate('USA','2A').ok, false);
+    eq(App.Validators.validate('U2','2A').ok, false);
+  });
+  add('validator: 6-7AN accepts mixed alphanumeric', ()=>{
+    eq(App.Validators.validate('270DGT','6-7AN').ok, true);
+    eq(App.Validators.validate('2500MLG','6-7AN').ok, true);
+  });
+  add('validator: empty placeholder `-` is OK for any spec', ()=>{
+    eq(App.Validators.validate('-','3N').ok, true);
+  });
+  add('validator: zero-pad helper degrees 3N (40 → 040)', ()=>{
+    eq(App.Validators.padNumeric('40','3N'), '040');
+    eq(App.Validators.padNumeric('18','4N'), '0018');
+  });
+
+  /* ---- §7.2 Enumeration handling ---- */
+  add('enum: known code → label, valid', ()=>{
+    const d = App.Decoder.decodeFieldValue('NERV', App.SetDefs.INDIA.fields[1]);
+    eq(d.decodedLabel, 'Nerve agent');
+    eq(d.unverified, false);
+  });
+  add('enum: unknown agent code → UNVERIFIED, not auto-corrected', ()=>{
+    const d = App.Decoder.decodeFieldValue('XYZA', App.SetDefs.INDIA.fields[1]);
+    eq(d.unverified, true);
+    assert(d.warnings.length > 0);
+    eq(d.raw, 'XYZA');
+  });
+  add('enum: sample-only ACD detection → UNVERIFIED but accepted', ()=>{
+    const d = App.Decoder.decodeFieldValue('ACD', App.SetDefs.INDIA.fields[3]);
+    eq(d.decodedLabel.indexOf('verify') >= 0 || d.decodedLabel.indexOf('UNVERIFIED') >= 0 ||
+       d.unverified === true, true);
+    eq(d.unverified, true);
+  });
+
+  /* ---- §7.2 M/O/C enforcement ---- */
+  add('M/O/C: missing mandatory set surfaced', ()=>{
+    const toks = App.Tokenizer.tokenize('GOLF/OBS/AIR/1/BML/-//');
+    const v = App.Decoder.validateReport(toks, 'NBC1_CHEM');
+    assert(v.errors.some(e => e.indexOf('BRAVO') >= 0));
+    assert(v.errors.some(e => e.indexOf('DELTA') >= 0));
+  });
+  add('M/O/C: missing mandatory field within set → error', ()=>{
+    const d = App.Decoder.decodeSet({setName:'BRAVO', fields:['', '']});
+    assert(d.errors.some(e => e.indexOf('location') >= 0));
+  });
+  add('M/O/C: optional set absent is OK', ()=>{
+    const toks = App.Tokenizer.tokenize(
+      'BRAVO/32UNB062634/2500MLG//DELTA/201405ZSEP2005/-//'+
+      'GOLF/OBS/AIR/1/BML/-//INDIA/AIR/NERV/P/ACD//TANGO/FLAT/URBAN//');
+    const v = App.Decoder.validateReport(toks, 'NBC1_CHEM');
+    eq(v.errors.length, 0);
+  });
+
+  /* ---- §7.2 Repeatable bounds ---- */
+  add('repeat: FOXTROT 6 pairs OK, 7 pairs → error', ()=>{
+    const ok = 'FOXTROT/' + Array(12).fill('').map((_,i)=> i%2===0?'GRID':'AA').join('/') + '//';
+    const bad = 'FOXTROT/' + Array(14).fill('').map((_,i)=> i%2===0?'GRID':'AA').join('/') + '//';
+    const dOk = App.Decoder.decodeSet(App.Tokenizer.tokenize(ok)[0]);
+    const dBad = App.Decoder.decodeSet(App.Tokenizer.tokenize(bad)[0]);
+    assert(dOk.errors.length === 0);
+    assert(dBad.errors.some(e => e.indexOf('over max') >= 0));
+  });
+  add('repeat: INDIA detect ≤ 2 occurrences; 3rd → error', ()=>{
+    const ok = App.Decoder.decodeSet(App.Tokenizer.tokenize('INDIA/AIR/NERV/P/ACD/MPDS//')[0]);
+    const bad = App.Decoder.decodeSet(App.Tokenizer.tokenize('INDIA/AIR/NERV/P/ACD/MPDS/UMPDS//')[0]);
+    eq(ok.errors.length, 0);
+    assert(bad.errors.some(e => e.indexOf('over max') >= 0));
+  });
+
+  /* ---- §7.1 Golden-sample round-trip ---- */
+  function rt(line){
+    const toks = App.Tokenizer.tokenize(line);
+    eq(toks.length, 1, 'expected 1 set in fixture');
+    const out = App.Formatter.formatSet(toks[0]);
+    eq(out, line, 'round-trip');
+  }
+  add('round-trip: Fig E-1 BRAVO', ()=>rt('BRAVO/32UNB062634/2500MLG//'));
+  add('round-trip: Fig E-1 GOLF',  ()=>rt('GOLF/OBS/AIR/1/BML/-//'));
+  add('round-trip: Fig E-1 INDIA', ()=>rt('INDIA/AIR/NERV/P/ACD//'));
+  add('round-trip: Fig E-1 TANGO', ()=>rt('TANGO/FLAT/URBAN//'));
+  add('round-trip: Fig E-1 YANKEE',()=>rt('YANKEE/270DGT/015KPH//'));
+  add('round-trip: Fig E-1 ZULU',  ()=>rt('ZULU/4/10C/7/5/1//'));
+  add('round-trip: Fig E-2 ALFA',  ()=>rt('ALFA/US/A234/001/B//'));
+  add('round-trip: Fig E-2 FOXTROT (EE qualifier per sample)', ()=>rt('FOXTROT/32UNB058640/EE//'));
+  add('round-trip: Fig E-3 ALFA',  ()=>rt('ALFA/US/A234/001/C//'));
+  add('round-trip: Fig E-3 PAPAA', ()=>rt('PAPAA/1KM/3-10DAY/10KM/2-6DAY//'));
+  add('round-trip: Fig E-3 DELTA', ()=>rt('DELTA/201405ZSEP2005//'));
+  add('round-trip: User NBC3 FOXTROT', ()=>rt('FOXTROT/33UUB206300/AA//'));
+  add('round-trip: User NBC3 INDIA',   ()=>rt('INDIA/SURF/NERV/NP//'));
+  add('round-trip: User NBC3 PAPAA',   ()=>rt('PAPAA/01KM/-/10KM/-//'));
+  add('round-trip: User NBC3 YANKEE',  ()=>rt('YANKEE/105DGT/009KPH//'));
+  add('round-trip: User NBC3 ZULU',    ()=>rt('ZULU/4/18C/9/-/2//'));
+  add('round-trip: User NBC3 GENTEXT (comma & space preserved)',
+    ()=>rt('GENTEXT/CBRNINFO/TYPE A, CASE 1//'));
+
+  // Full user-provided NBC3 sample round-trip.
+  add('round-trip: full user NBC3 sample', ()=>{
+    const orig =
+      'FOXTROT/33UUB206300/AA//\n'+
+      'INDIA/SURF/NERV/NP//\n'+
+      'PAPAA/01KM/-/10KM/-//\n'+
+      'YANKEE/105DGT/009KPH//\n'+
+      'ZULU/4/18C/9/-/2//\n'+
+      'GENTEXT/CBRNINFO/TYPE A, CASE 1//';
+    const toks = App.Tokenizer.tokenize(orig);
+    eq(toks.length, 6);
+    // GENTEXT body in toks is split; the formatter rejoins faithfully
+    // only because GENTEXT decoder rejoins. So we test via decoder
+    // canonical form then formatter:
+    // The tokenizer splits "TYPE A, CASE 1" into one field (no `/`),
+    // so direct formatSet works:
+    const back = toks.map(App.Formatter.formatSet).join('\n');
+    eq(back, orig);
+  });
+
+  /* ---- §7.4 Labeling tests ---- */
+  add('labeling: TRAINING USE ONLY in banner DOM', ()=>{
+    const txt = document.getElementById('trainingBanner').textContent;
+    assert(/TRAINING USE ONLY/.test(txt));
+  });
+  add('labeling: TRAINING USE ONLY in export header', ()=>{
+    assert(/TRAINING USE ONLY/.test(App.Shell.exportHeader()));
+  });
+
+  /* ---- §7.5 UNVERIFIED handling ---- */
+  add('UNVERIFIED surfaced: FOXTROT EE qualifier flagged', ()=>{
+    const d = App.Decoder.decodeFieldValue('EE', App.SetDefs.FOXTROT.fields[1]);
+    eq(d.unverified, true);
+  });
+  add('UNVERIFIED surfaced: ZULU set-level flag', ()=>{
+    eq(!!App.SetDefs.ZULU.unverified, true);
+  });
+  add('UNVERIFIED surfaced: PAPAA set-level flag', ()=>{
+    eq(!!App.SetDefs.PAPAA.unverified, true);
+  });
+
+  function run(){
+    const root = document.getElementById('testResults');
+    root.innerHTML = '<p>Running '+tests.length+' tests…</p>';
+    let pass = 0, fail = 0; const rows = [];
+    for (const t of tests){
+      try { t.fn(); pass++; rows.push({name:t.name, ok:true}); }
+      catch(e){ fail++; rows.push({name:t.name, ok:false, err:e.message}); }
+    }
+    let html = '<div class="card"><strong>'+pass+' passed</strong> / '+
+      '<strong style="color:'+(fail?'var(--err)':'var(--ok)')+'">'+fail+' failed</strong> '+
+      ' (of '+tests.length+')</div>';
+    html += '<div class="card">';
+    for (const r of rows){
+      html += '<div class="test-row '+(r.ok?'pass':'fail')+'">'+
+        '<span class="nm">'+escapeHTMLTest(r.name)+'</span>'+
+        '<span class="st">'+(r.ok?'PASS':'FAIL')+'</span>'+
+        (r.ok?'':'<div class="err">'+escapeHTMLTest(r.err)+'</div>')+
+      '</div>';
+    }
+    html += '</div>';
+    root.innerHTML = html;
+    App.Log.add('tests', pass+'/'+tests.length+' passed', fail+' failed');
+    return { pass, fail, total: tests.length };
+  }
+  function escapeHTMLTest(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  return { add, run, _count: ()=>tests.length };
+})();
+
+/* ============================================================
+   BOOTSTRAP / SHELL UI
+   ============================================================ */
+(function init(){
+  // Build module menu from registry.
+  const menu = document.getElementById('moduleMenu');
+  App.Shell.listModules().forEach(m=>{
+    const btn = document.createElement('button');
+    btn.className = 'item';
+    btn.innerHTML = '<span class="t">'+m.label+'</span><span class="d">'+m.desc+'</span>';
+    btn.addEventListener('click', ()=>{
+      App.Shell.navigate(m.id);
+    });
+    menu.appendChild(btn);
+  });
+
+  // Tool buttons on home.
+  document.querySelectorAll('[data-go]').forEach(b=>{
+    b.addEventListener('click', ()=>App.Shell.navigate(b.getAttribute('data-go')));
+  });
+
+  // Header buttons.
+  document.getElementById('btnBack').addEventListener('click', ()=>App.Shell.navigate('home'));
+  document.getElementById('btnMenu').addEventListener('click', ()=>App.Shell.navigate('home'));
+
+  // Tests.
+  document.getElementById('runTestsBtn').addEventListener('click', ()=>App.Tests.run());
+
+  // Debug log toggle.
+  document.getElementById('logToggle').addEventListener('change', e=>App.Log.set(e.target.checked));
+  document.getElementById('logClear').addEventListener('click', ()=>App.Log.clear());
+
+  // Mount Module 1.
+  App.Module1.mount();
+
+  App.Log.add('boot', 'Mobile CBRN App initialized', App.Tests._count()+' tests registered');
+})();
+</script>
+</body>
+</html>
