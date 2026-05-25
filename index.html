@@ -149,6 +149,36 @@ details[open] summary{margin-bottom:6px}
   flex-wrap:wrap}
 .photo-box img{display:block;width:100%;height:auto;max-height:60vh;object-fit:contain;
   background:#000;-webkit-user-select:auto;user-select:auto;-webkit-touch-callout:default}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:6px 10px;font-size:13px;margin:6px 0}
+.kv .k{color:var(--muted);font-family:var(--mono);font-size:12px}
+.kv .v{color:var(--ink);font-family:var(--mono)}
+.kv .v.warn{color:var(--warn)}
+.kv .v.err{color:var(--err)}
+.compute-panel{background:var(--panel2);border:1px solid var(--rule);border-radius:8px;
+  padding:10px;margin:10px 0;font-size:13px}
+.compute-panel h4{margin:0 0 6px;font-size:14px;color:var(--accent)}
+.compute-panel .cite{font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:4px}
+.conflict-banner{background:#5a1a1a;border:1px solid var(--err);color:#fdd;
+  padding:10px;border-radius:8px;margin:8px 0;font-size:13px}
+.conflict-banner strong{color:var(--err)}
+.match-banner{background:#1a3a1a;border:1px solid var(--ok);color:#dfd;
+  padding:8px 10px;border-radius:8px;margin:8px 0;font-size:13px}
+.plot-canvas{display:block;width:100%;height:auto;background:#fff;border:1px solid var(--rule);
+  border-radius:8px;touch-action:none;-webkit-user-select:none;user-select:none}
+.plot-wrap{background:#000;border:1px solid var(--rule);border-radius:8px;padding:6px;
+  margin:8px 0;position:relative}
+.zoom-bar{display:flex;gap:6px;justify-content:flex-end;margin-top:6px}
+.zoom-bar button{min-width:44px;min-height:36px;border:1px solid var(--rule);
+  background:var(--panel2);color:var(--ink);border-radius:8px;
+  font-size:18px;font-weight:600;font-family:var(--mono);padding:0 10px}
+.zoom-bar button.fit{font-size:14px;font-weight:600}
+.zoom-bar .zoom-readout{align-self:center;color:var(--muted);font-family:var(--mono);
+  font-size:12px;margin-right:6px}
+.plot-meta{font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:4px}
+.endpoint-row{display:flex;gap:6px;align-items:center;margin:4px 0}
+.endpoint-row input{flex:1;min-height:36px;padding:6px;font-size:14px}
+.endpoint-row .pill{font-size:11px;color:var(--muted);font-family:var(--mono);
+  background:var(--panel2);padding:2px 6px;border-radius:4px}
 </style>
 </head>
 <body>
@@ -325,6 +355,159 @@ details[open] summary{margin-bottom:6px}
         are marked <strong>[v1]</strong>; others are listed for forward use.</p>
       <div id="referenceOut"></div>
     </div>
+  </section>
+
+  <!-- MODULE 2 — CDM Parser -->
+  <section id="view-mod2" class="view">
+    <div class="crumb">Home › Module 2 — CDM Parse</div>
+    <h2>Chemical Downwind Message</h2>
+    <p class="notes">Extract the three plotting-critical values — downwind direction (grid),
+      downwind speed, air stability code — that drive Module 3. The exact CDM line/set
+      format is an open item (M2-OI-1): the parser uses the shared tokenizer and surfaces
+      fields it can identify; anything ambiguous is flagged <span class="tag unverified">UNVERIFIED</span>.
+      Until the CDM format is transcribed from the manual, "Quick CDM" is the primary
+      entry path.</p>
+    <div class="tabs" role="tablist">
+      <button data-cdmtab="quick" class="on">Quick CDM</button>
+      <button data-cdmtab="paste">Paste CDM</button>
+    </div>
+
+    <div id="cdmtab-quick">
+      <div class="card">
+        <h3>Quick CDM entry</h3>
+        <p class="notes">Enter the three values Module 3 needs. Direction is the grid
+          downwind azimuth (degrees, where the wind is blowing TO). Speed is in km/h.
+          Stability category is the numeric code from the message (typically 1–7).</p>
+        <div class="field">
+          <label for="cdmDir">Downwind direction (grid, °)</label>
+          <input type="text" id="cdmDir" placeholder="e.g. 105" inputmode="decimal">
+        </div>
+        <div class="field">
+          <label for="cdmSpeed">Downwind speed (km/h)</label>
+          <input type="text" id="cdmSpeed" placeholder="e.g. 9" inputmode="decimal">
+        </div>
+        <div class="field">
+          <label for="cdmStab">Air stability category</label>
+          <input type="text" id="cdmStab" placeholder="e.g. 4 (Neutral)" inputmode="decimal">
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button class="primary" id="cdmSaveQuick">Save to plotting store</button>
+          <button class="ghost" id="cdmClearQuick">Clear</button>
+        </div>
+        <div id="cdmQuickResult"></div>
+      </div>
+    </div>
+
+    <div id="cdmtab-paste" style="display:none">
+      <div class="card">
+        <label for="cdmInput">Paste CDM string</label>
+        <textarea id="cdmInput" placeholder="(CDM message, set lines ending in //)"></textarea>
+        <div class="row" style="margin-top:10px">
+          <button class="primary" id="cdmParseBtn">Parse &amp; extract</button>
+          <button class="ghost" id="cdmClearPaste">Clear</button>
+        </div>
+        <p class="notes" style="margin-top:8px"><span class="tag unverified">UNVERIFIED</span>
+          Real CDM line/set definitions await transcription from the manual. The parser
+          tokenizes generically and looks for YANKEE-style direction/speed and a
+          stability-looking field — confirm against the manual before relying on parsed
+          output. Use Quick CDM if in doubt.</p>
+      </div>
+      <div id="cdmPasteResult"></div>
+    </div>
+
+    <div class="card" id="cdmStoreCard">
+      <h3>Current plotting CDM (shared with Module 3)</h3>
+      <div id="cdmStoreView"><p class="notes">(no CDM saved)</p></div>
+    </div>
+  </section>
+
+  <!-- MODULE 3 — Plotting -->
+  <section id="view-mod3" class="view">
+    <div class="crumb">Home › Module 3 — Chemical Hazard Plotting</div>
+    <h2>Chemical Simplified Hazard Plotting</h2>
+    <p class="notes">Schematic, north-up plot per FM 3-11.3 Appendix E (Table E-1, Figures E-5…E-13).
+      <strong>SCHEMATIC ONLY</strong> — no map basemap (per requirements M3.2). All distances are
+      doctrinal templates; the plot is a training aid, not an operational hazard prediction.</p>
+
+    <div class="card">
+      <h3>1. Attack source</h3>
+      <div class="field">
+        <label for="plotSource">Source of NBC3/NBC4 inputs</label>
+        <select id="plotSource">
+          <option value="quick">Quick entry (manual fields)</option>
+          <option value="mod1">Use current Module 1 form (NBC3 CHEM)</option>
+        </select>
+      </div>
+      <div id="plotQuickFields">
+        <div class="field">
+          <label for="plotGrid">Attack location (FOXTROT grid; for labels)</label>
+          <input type="text" id="plotGrid" placeholder="e.g. 33UUB206300">
+        </div>
+        <div class="field">
+          <label for="plotContainer">Agent container (GOLF field 4)</label>
+          <select id="plotContainer"></select>
+        </div>
+        <div class="field">
+          <label for="plotBurst">Burst type (for RKT/MSL container)</label>
+          <select id="plotBurst">
+            <option value="surface">surface burst</option>
+            <option value="air">air burst</option>
+            <option value="na">N/A (non-RKT/MSL container)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="plotPersist">Agent persistency (INDIA field 3)</label>
+          <select id="plotPersist"></select>
+        </div>
+        <div class="field">
+          <label for="plotAgent">Agent (INDIA field 2) — for DHD lookup</label>
+          <select id="plotAgent"></select>
+        </div>
+        <div class="field">
+          <label for="plotGentext">GENTEXT cross-check (optional, e.g., "TYPE A, CASE 1")</label>
+          <input type="text" id="plotGentext" placeholder="TYPE A, CASE 1">
+        </div>
+        <div class="field">
+          <label for="plotNbc4">Type C (NBC4 detection — no known attack)</label>
+          <div class="checkbox-row">
+            <input type="checkbox" id="plotNbc4">
+            <label for="plotNbc4">This is a Type C scenario (detection at this grid)</label>
+          </div>
+        </div>
+        <div class="field">
+          <label>Line attack (B5/B6) — additional FOXTROT end points</label>
+          <div id="plotEndpoints"></div>
+          <button class="ghost" id="plotAddEndpoint" style="margin-top:6px">+ Add end point</button>
+          <p class="notes">A line attack requires ≥2 FOXTROT grids. For the schematic the
+            attack-line orientation is taken from "attack-line bearing" below; grid strings
+            are used for labels only.</p>
+          <div class="field" id="plotLineFields" style="display:none">
+            <label for="plotLineLen">Attack-line length (km)</label>
+            <input type="text" id="plotLineLen" placeholder="e.g. 3.0" inputmode="decimal">
+            <label for="plotLineBearing" style="margin-top:6px">Attack-line bearing (grid °)</label>
+            <input type="text" id="plotLineBearing" placeholder="e.g. 090" inputmode="decimal">
+          </div>
+        </div>
+      </div>
+      <div id="plotMod1Status" class="notes" style="display:none"></div>
+    </div>
+
+    <div class="card">
+      <h3>2. CDM (wind & stability)</h3>
+      <div id="plotCdmView"></div>
+      <button class="ghost" id="plotGotoCdm">Edit CDM (Module 2)</button>
+    </div>
+
+    <div class="card">
+      <h3>3. Compute &amp; plot</h3>
+      <div class="row">
+        <button class="primary" id="plotComputeBtn">Compute &amp; render</button>
+        <button class="secondary" id="plotExportBtn" disabled>Export PNG</button>
+        <button class="ghost" id="plotClearBtn">Clear</button>
+      </div>
+    </div>
+
+    <div id="plotOutput"></div>
   </section>
 </main>
 
@@ -836,10 +1019,15 @@ App.Tokenizer = (function(){
       // Split into setname + fields by `/`.
       const parts = chunk.split('/');
       const setName = parts.shift().toUpperCase();
-      // Field values preserved verbatim (case sensitive); we trim the
-      // set-name only because the manual's set names are uppercase.
-      sets.push({ setName, fields: parts });
-      App.Log.add('tok', setName, parts);
+      // Trim each field — handles multi-line input where a newline
+      // sits between an EE/grid pair on a wrapped FOXTROT set, e.g.
+      //   FOXTROT/32UNG420620/EE/
+      //   32UNG435620/EE//
+      // Without this, field 3 would parse as "\n32UNG435620" and
+      // fail the class-X validator (regex `^.+$` doesn't span \n).
+      const fields = parts.map(f => f.replace(/^\s+|\s+$/g, ''));
+      sets.push({ setName, fields });
+      App.Log.add('tok', setName, fields);
     }
     return sets;
   }
@@ -1773,6 +1961,1916 @@ App.Shell.registerModule({
 });
 
 /* ============================================================
+   App.Store — shared cross-module data store [R-M2.4, R-M3.7.1]
+   Holds: parsedNBC3 (from Module 1) and parsedCDM (from Module 2).
+   Subscribers re-render when the value changes.
+   In-memory only (R-5.4 — no localStorage).
+   ============================================================ */
+App.Store = (function(){
+  const state = { parsedNBC3:null, parsedCDM:null };
+  const subs = [];
+  function set(key, val){
+    state[key] = val;
+    App.Log.add('store','set',key,val?'(populated)':'(null)');
+    subs.forEach(fn => { try { fn(key, val, state); } catch(e){ console.error(e); } });
+  }
+  function get(key){ return state[key]; }
+  function subscribe(fn){ subs.push(fn); return ()=>{ const i=subs.indexOf(fn); if(i>=0) subs.splice(i,1); }; }
+  return { set, get, subscribe };
+})();
+
+/* ============================================================
+   App.CDM — CDM parser & extractor [Module 2, R-M2.1–R-M2.4]
+
+   The exact CDM line/set format is open item M2-OI-1: the manual
+   PDF was not provided alongside the requirements doc. Until that
+   format is transcribed:
+   - The tokenizer (Module 1) parses CDM lines generically.
+   - Field extraction heuristically pulls a YANKEE-style
+     (direction, speed) and a ZULU-style stability category.
+   - All extracted fields are flagged UNVERIFIED.
+   - "Quick CDM" is the primary entry path users should use.
+
+   The parser's output schema (consumed by Module 3):
+     { downwindDirectionDeg:number, downwindSpeedKph:number,
+       stabilityCode:string, sourceLines:[string], warnings:[],
+       unverified:bool }
+   ============================================================ */
+/* ============================================================
+   App.MGRS — minimal same-square MGRS decoder.
+   Returns relative km positions for a list of grids when they all
+   share the same UTM zone+band+100km square (the common case for a
+   tactical line attack). Multi-square parsing requires the full
+   MGRS↔UTM lookup table which is not included in this build.
+
+   Format: <zone:1-2 digits><band:1 alpha><square:2 alpha><digits>
+   `digits` is split evenly into easting/northing pairs:
+     2 digits → 1 km precision per unit
+     4 digits → 100 m precision
+     6 digits → 100 m precision  (per FM 3-11.3 sample usage)
+     8 digits → 10 m
+    10 digits → 1 m
+   ============================================================ */
+App.MGRS = (function(){
+  function parseSameSquare(grid){
+    if (grid == null) return null;
+    const m = /^(\d{1,2})([A-Z])([A-Z]{2})(\d+)$/.exec(String(grid).trim().toUpperCase());
+    if (!m) return null;
+    const digits = m[4];
+    if (digits.length % 2 !== 0 || digits.length < 2 || digits.length > 10) return null;
+    const half = digits.length / 2;
+    const east  = parseInt(digits.substring(0, half), 10);
+    const north = parseInt(digits.substring(half), 10);
+    // Within a 100km square: 5 digits = 1m precision; each fewer
+    // digit multiplies by 10. So unit = 10^(5 - half) meters.
+    const unitMeters = Math.pow(10, 5 - half);
+    return {
+      zone: m[1], band: m[2], square: m[3],
+      eastM:  east  * unitMeters,
+      northM: north * unitMeters,
+      raw: String(grid),
+      squareKey: m[1]+m[2]+m[3]
+    };
+  }
+  // Parse a list of grids. If all share the same 100km square, return
+  // an array of { raw, km:{x,y} } relative to the FIRST grid.
+  // Returns null if any grid is unparseable or grids span squares.
+  function parseGridsRelative(grids){
+    if (!grids || !grids.length) return null;
+    const parsed = grids.map(parseSameSquare);
+    if (parsed.some(p => p === null)) return null;
+    const key = parsed[0].squareKey;
+    if (parsed.some(p => p.squareKey !== key)) return null;
+    const ox = parsed[0].eastM / 1000;
+    const oy = parsed[0].northM / 1000;
+    return parsed.map(p => ({
+      raw: p.raw,
+      km: { x: p.eastM/1000 - ox, y: p.northM/1000 - oy }
+    }));
+  }
+  return { parseSameSquare, parseGridsRelative };
+})();
+
+App.CDM = (function(){
+
+  // Parse "270DGT" or "0900MLG" (mils) etc. into degrees.
+  // Mils → degrees: deg = mils * (360/6400) = mils * 0.05625.
+  function parseDirection(s){
+    if (!s) return null;
+    const m = String(s).trim().toUpperCase().match(/^(\d+)(DGT|MLG)?$/);
+    if (!m) return null;
+    const n = parseInt(m[1],10);
+    if (m[2] === 'MLG') return { deg: n * (360/6400), unit:'mils', raw:s };
+    return { deg: n, unit:'degrees', raw:s };
+  }
+
+  // Parse "015KPH" or "15" etc. into km/h.
+  function parseSpeed(s){
+    if (!s) return null;
+    const m = String(s).trim().toUpperCase().match(/^(\d+)(KPH|MPH|KTS)?$/);
+    if (!m) return null;
+    const n = parseInt(m[1],10);
+    let kph = n;
+    if (m[2] === 'MPH') kph = n * 1.609344;
+    else if (m[2] === 'KTS') kph = n * 1.852;
+    return { kph, raw:s, unit: m[2] || 'kph' };
+  }
+
+  // Extract plotting-critical values from tokenized CDM sets.
+  // Heuristic until M2-OI-1 is resolved.
+  function extract(toks){
+    const out = {
+      downwindDirectionDeg: null, downwindSpeedKph: null,
+      stabilityCode: null, sourceLines: [], warnings: [],
+      unverified: true   // until CDM format is transcribed
+    };
+    for (const tok of toks){
+      out.sourceLines.push(tok.setName + '/' + tok.fields.join('/') + '//');
+      if (tok.setName === 'YANKEE' && tok.fields.length >= 2){
+        const d = parseDirection(tok.fields[0]);
+        const s = parseSpeed(tok.fields[1]);
+        if (d) out.downwindDirectionDeg = d.deg;
+        if (s) out.downwindSpeedKph = s.kph;
+      }
+      // Heuristic: ZULU field 1 holds stability code in NBC3 samples;
+      // CDM may carry stability differently. Mark UNVERIFIED.
+      if (tok.setName === 'ZULU' && tok.fields.length >= 1){
+        out.stabilityCode = tok.fields[0];
+      }
+    }
+    if (out.downwindDirectionDeg == null) out.warnings.push('downwind direction not found in CDM (looked in YANKEE field 1)');
+    if (out.downwindSpeedKph == null)     out.warnings.push('downwind speed not found in CDM (looked in YANKEE field 2)');
+    if (out.stabilityCode == null)        out.warnings.push('stability code not found in CDM (looked in ZULU field 1)');
+    out.warnings.push('CDM line/set format UNVERIFIED (open item M2-OI-1)');
+    return out;
+  }
+
+  // Quick path: build the contract directly from three user inputs.
+  function fromQuick(dirStr, speedStr, stabStr){
+    const dir = parseDirection(dirStr) || (isFinite(parseFloat(dirStr)) ? { deg:parseFloat(dirStr), unit:'degrees', raw:dirStr } : null);
+    const spd = parseSpeed(speedStr)   || (isFinite(parseFloat(speedStr)) ? { kph:parseFloat(speedStr), unit:'kph', raw:speedStr } : null);
+    const warnings = [];
+    if (!dir) warnings.push('downwind direction unparseable: '+dirStr);
+    if (!spd) warnings.push('downwind speed unparseable: '+speedStr);
+    if (!stabStr) warnings.push('stability code missing');
+    if (dir && (dir.deg < 0 || dir.deg > 360)) warnings.push('direction out of range 0..360: '+dir.deg);
+    if (spd && spd.kph < 0)  warnings.push('speed must be non-negative');
+    return {
+      downwindDirectionDeg: dir ? dir.deg : null,
+      downwindSpeedKph:     spd ? spd.kph : null,
+      stabilityCode:        stabStr || null,
+      sourceLines: [],
+      warnings,
+      unverified: false,
+      source: 'quick'
+    };
+  }
+
+  // Fallback path: derive a plotting CDM from the Module 1 NBC3
+  // form's YANKEE (downwind direction & speed) and ZULU (stability).
+  // Per FM 3-11.3 doctrine the CDM is authoritative for plotting —
+  // these values are the observer's local readings, not the broader
+  // hazard-area forecast. Returns null when YANKEE/ZULU are missing
+  // or empty; otherwise tags `source:'nbc3-fallback'` so the UI can
+  // surface that the CDM is derived, not real.
+  function fromNBC3State(mod1State){
+    if (!mod1State || !mod1State.sets) return null;
+    if (mod1State.reportType !== 'NBC3_CHEM') return null;
+    const sets = mod1State.sets;
+    const yankee = sets.YANKEE && sets.YANKEE[0] && sets.YANKEE[0].fields;
+    const zulu   = sets.ZULU   && sets.ZULU[0]   && sets.ZULU[0].fields;
+    const dirRaw  = yankee && yankee[0];
+    const spdRaw  = yankee && yankee[1];
+    const stabRaw = zulu   && zulu[0];
+    if ((!dirRaw || dirRaw === '-') && (!spdRaw || spdRaw === '-') && (!stabRaw || stabRaw === '-')) return null;
+    const dir = dirRaw ? parseDirection(dirRaw) : null;
+    const spd = spdRaw ? parseSpeed(spdRaw) : null;
+    const warnings = [
+      'CDM derived from NBC3 YANKEE/ZULU — when an actual CDM is available it should take precedence (the NBC3 carries the observer\'s local readings, not the hazard-area forecast).'
+    ];
+    if (!dir) warnings.push('YANKEE direction unparseable: '+dirRaw);
+    if (!spd) warnings.push('YANKEE speed unparseable: '+spdRaw);
+    if (!stabRaw) warnings.push('ZULU stability missing');
+    return {
+      downwindDirectionDeg: dir ? dir.deg : null,
+      downwindSpeedKph:     spd ? spd.kph : null,
+      stabilityCode:        stabRaw || null,
+      sourceLines: [],
+      warnings,
+      unverified: false,
+      source: 'nbc3-fallback'
+    };
+  }
+
+  return { parseDirection, parseSpeed, extract, fromQuick, fromNBC3State };
+})();
+
+/* ============================================================
+   App.Module2 — CDM Parser UI
+   ============================================================ */
+App.Module2 = (function(){
+
+  function renderStoreView(){
+    const el = document.getElementById('cdmStoreView');
+    const cdm = App.Store.get('parsedCDM');
+    if (!cdm){ el.innerHTML = '<p class="notes">(no CDM saved)</p>'; return; }
+    const fmt = v => v==null ? '—' : (typeof v==='number'? v.toFixed(2) : v);
+    let html = '<div class="kv">'+
+      '<div class="k">direction (°)</div><div class="v">'+fmt(cdm.downwindDirectionDeg)+'</div>'+
+      '<div class="k">speed (km/h)</div><div class="v">'+fmt(cdm.downwindSpeedKph)+'</div>'+
+      '<div class="k">stability</div><div class="v">'+fmt(cdm.stabilityCode)+'</div>'+
+      '<div class="k">source</div><div class="v">'+(cdm.source||'paste')+'</div>'+
+      '</div>';
+    if (cdm.unverified) html += '<p><span class="tag unverified">UNVERIFIED</span> CDM format pending transcription.</p>';
+    if (cdm.warnings && cdm.warnings.length){
+      html += '<div class="validation warn"><strong>Warnings:</strong><ul>'+
+        cdm.warnings.map(w=>'<li>'+escHTML(w)+'</li>').join('')+'</ul></div>';
+    }
+    el.innerHTML = html;
+  }
+
+  function saveQuick(){
+    const dir = document.getElementById('cdmDir').value;
+    const spd = document.getElementById('cdmSpeed').value;
+    const stb = document.getElementById('cdmStab').value;
+    const cdm = App.CDM.fromQuick(dir, spd, stb);
+    App.Store.set('parsedCDM', cdm);
+    const out = document.getElementById('cdmQuickResult');
+    if (cdm.warnings.length){
+      out.innerHTML = '<div class="validation warn"><ul>'+
+        cdm.warnings.map(w=>'<li>'+escHTML(w)+'</li>').join('')+'</ul></div>';
+    } else {
+      out.innerHTML = '<div class="validation ok">CDM saved to plotting store.</div>';
+    }
+    renderStoreView();
+    toast('CDM saved');
+  }
+  function clearQuick(){
+    document.getElementById('cdmDir').value='';
+    document.getElementById('cdmSpeed').value='';
+    document.getElementById('cdmStab').value='';
+    document.getElementById('cdmQuickResult').innerHTML='';
+  }
+
+  function parsePaste(){
+    const text = document.getElementById('cdmInput').value;
+    const toks = App.Tokenizer.tokenize(text);
+    const cdm = App.CDM.extract(toks);
+    cdm.source = 'paste';
+    App.Store.set('parsedCDM', cdm);
+    const out = document.getElementById('cdmPasteResult');
+    let html = '<div class="card"><h3>Extracted values</h3><div class="kv">'+
+      '<div class="k">direction (°)</div><div class="v">'+(cdm.downwindDirectionDeg!=null? cdm.downwindDirectionDeg.toFixed(2) : '—')+'</div>'+
+      '<div class="k">speed (km/h)</div><div class="v">'+(cdm.downwindSpeedKph!=null? cdm.downwindSpeedKph.toFixed(2) : '—')+'</div>'+
+      '<div class="k">stability</div><div class="v">'+(cdm.stabilityCode||'—')+'</div>'+
+      '</div>';
+    html += '<p><span class="tag unverified">UNVERIFIED</span> CDM heuristic parse (M2-OI-1).</p>';
+    if (cdm.warnings.length){
+      html += '<div class="validation warn"><ul>'+
+        cdm.warnings.map(w=>'<li>'+escHTML(w)+'</li>').join('')+'</ul></div>';
+    }
+    html += '</div>';
+    html += '<div class="card"><h3>Tokenized sets</h3>';
+    if (!toks.length) html += '<p class="notes">(no sets parsed)</p>';
+    toks.forEach(tok => {
+      html += '<div class="parsed-set"><div class="h">'+tok.setName+'</div>'+
+        '<div class="parsed-field"><div class="k">fields</div><div class="v"><span class="raw">'+
+        escHTML(tok.fields.join(' / '))+'</span></div></div></div>';
+    });
+    html += '</div>';
+    out.innerHTML = html;
+    renderStoreView();
+    toast('CDM extracted');
+  }
+  function clearPaste(){
+    document.getElementById('cdmInput').value='';
+    document.getElementById('cdmPasteResult').innerHTML='';
+  }
+
+  function escHTML(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function mount(){
+    document.querySelectorAll('#view-mod2 .tabs button').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        document.querySelectorAll('#view-mod2 .tabs button').forEach(x=>x.classList.remove('on'));
+        b.classList.add('on');
+        const tab = b.getAttribute('data-cdmtab');
+        document.getElementById('cdmtab-quick').style.display = (tab==='quick'?'':'none');
+        document.getElementById('cdmtab-paste').style.display = (tab==='paste'?'':'none');
+      });
+    });
+    document.getElementById('cdmSaveQuick').addEventListener('click', saveQuick);
+    document.getElementById('cdmClearQuick').addEventListener('click', clearQuick);
+    document.getElementById('cdmParseBtn').addEventListener('click', parsePaste);
+    document.getElementById('cdmClearPaste').addEventListener('click', clearPaste);
+    App.Store.subscribe((k)=>{ if (k==='parsedCDM') renderStoreView(); });
+    renderStoreView();
+  }
+
+  return { mount, _escHTML: escHTML };
+})();
+
+App.Shell.registerModule({
+  id: 'mod2',
+  label: 'Module 2 — CDM Parse',
+  desc: 'Extract downwind direction, speed, and stability for plotting.',
+  mount: App.Module2.mount
+});
+
+/* ============================================================
+   App.Plotting — type/case determination + geometry + renderer
+   Sources (transcribed verbatim from the requirements doc):
+     Table E-1  — type/case/radius (M3.3)
+     Table E-3  — Type A Case 2 simplified DHDs (M3.5)
+     Table E-4  — Type B mask-removal time (M3.5)
+   UNVERIFIED (not transcribed in this doc, awaiting manual PDF):
+     Table E-2  — detailed DHD by agent/means/wind/adjusted stability
+     Table D-14 — air-stability adjustment for Table E-2
+   ============================================================ */
+App.Plotting = (function(){
+
+  /* --- Container codes [M3.3 / Table E-1] --- */
+  const CONTAINERS = [
+    { code:'BML', label:'Bomblets' },
+    { code:'BOM', label:'Bomb' },
+    { code:'MNE', label:'Mine' },
+    { code:'MSL', label:'Missile' },
+    { code:'RKT', label:'Rocket' },
+    { code:'SHL', label:'Shell' },
+    { code:'SPR', label:'Sprayer' },
+    { code:'GEN', label:'Generator' },
+    { code:'UNK', label:'Unknown (→ treat as RKT per M3.3)' }
+  ];
+  const PERSISTENCY = [
+    { code:'NP', label:'Nonpersistent (→ Type A)' },
+    { code:'P',  label:'Persistent (→ Type B)' },
+    { code:'T',  label:'Thickened (→ Type B)' },
+    { code:'UNK',label:'Unknown' }
+  ];
+  // Used in Table E-3 row split (M3.5):
+  // shell/bomblet/mine = SHL/BML/MNE → DHD row "SBM"
+  // air-burst/missile/bomb/rocket/unknown → DHD row "ABRU"
+  function dhdGroup(container, burst){
+    const c = (container||'').toUpperCase();
+    if (c === 'UNK') return 'ABRU';   // UNK → RKT → ABRU
+    if (['SHL','BML','MNE'].includes(c)) return 'SBM';
+    if (['BOM','MSL','RKT'].includes(c)){
+      if (burst === 'air') return 'ABRU';
+      if (burst === 'surface' && (c==='RKT' || c==='MSL')) return 'SBM';  // surface-burst RKT/MSL → with SHL/BML/MNE
+      return 'ABRU';
+    }
+    return 'ABRU';   // fallback
+  }
+  // Table E-3 — Type A Case 2 simplified DHDs [M3.5]:
+  //   SBM    Unstable 10  Neutral 30  Stable 50  km
+  //   ABRU   Unstable 15  Neutral 30  Stable 50  km
+  const TABLE_E3 = {
+    SBM:  { Unstable:10, Neutral:30, Stable:50 },
+    ABRU: { Unstable:15, Neutral:30, Stable:50 }
+  };
+  // Stability code → coarse band [UNVERIFIED — exact mapping per
+  // Table D-14 awaits manual transcription; coarse mapping below is a
+  // common training-aid convention: 1-3 Unstable, 4 Neutral, 5-7 Stable.
+  // Surface as warning.]
+  function stabilityBand(code){
+    if (code == null) return null;
+    const s = String(code).trim().toUpperCase();
+    if (['1','2','3','U','UN','UNSTABLE'].includes(s)) return 'Unstable';
+    if (['4','N','NEUTRAL'].includes(s)) return 'Neutral';
+    if (['5','6','7','S','ST','STABLE'].includes(s)) return 'Stable';
+    return null;
+  }
+
+  /* --- Table E-4: Type B mask-removal time by daily mean temp [M3.5] --- */
+  function maskRemovalTime(tempC){
+    if (tempC == null || isNaN(tempC)) return null;
+    if (tempC < 10)  return { temp:'<10°C',  attack:'3–10 days', hazard:'2–6 days' };
+    if (tempC <= 20) return { temp:'11–20°C', attack:'2–4 days',  hazard:'1–2 days' };
+    return                  { temp:'>20°C',  attack:'≤2 days',   hazard:'≤1 day' };
+  }
+
+  /* ============================================================
+     DETERMINATION ENGINE [M3.3 / Table E-1]
+     Input:  { container, burst, persistency, windSpeedKph,
+               isNbc4, isLineAttack }
+     Output: { type, caseNum, attackRadiusKm, dhdSource, warnings,
+               citation }
+     ============================================================ */
+  function determine(inp){
+    const warnings = [];
+    const w = inp.windSpeedKph;
+    let container = (inp.container||'UNK').toUpperCase();
+    const persist = (inp.persistency||'').toUpperCase();
+    const burst = inp.burst || 'surface';
+
+    // Step 1: NBC4 detection ⇒ Type C [M3.3 step 1]
+    if (inp.isNbc4){
+      return {
+        type:'C', caseNum:null, attackRadiusKm:10, hazardRadiusKm:10,
+        dhdSource:'fixed-10', warnings,
+        citation:'Table E-1 Type C; Fig E-13'
+      };
+    }
+    // Step 2: persistency → A vs B [M3.3 step 2]
+    let type = (persist === 'P' || persist === 'T') ? 'B' : 'A';
+    if (persist !== 'NP' && persist !== 'P' && persist !== 'T'){
+      warnings.push('persistency '+inp.persistency+' not in {NP,P,T}; defaulting to Type A — UNVERIFIED');
+    }
+    // Step 3: container UNK → RKT [M3.3 §E.d.2]
+    if (container === 'UNK'){
+      container = 'RKT'; warnings.push('container UNK → using RKT for computation [M3.3]');
+    }
+    const windBand = (w == null) ? null : (w <= 10 ? 'low' : 'high');
+    if (windBand == null) warnings.push('wind speed missing — cannot resolve case');
+
+    // Step 4: line attack overrides → Case 5/6 [M3.3 step 4]
+    if (inp.isLineAttack){
+      type = 'B';   // line/area attacks are Type B per Cases 5/6
+      const caseNum = (windBand === 'low' ? 5 : 6);
+      return {
+        type, caseNum,
+        attackRadiusKm: 1, hazardRadiusKm: 10,
+        dhdSource:'line-attack', warnings,
+        citation:'Table E-1 row Case '+caseNum+'; Fig E-1'+(caseNum===5?'1':'2')+
+          ' — line-attack reconciliation VERIFY (M3.3 note)'
+      };
+    }
+
+    // Type A
+    if (type === 'A'){
+      const caseNum = (windBand === 'low' ? 1 : windBand === 'high' ? 2 : null);
+      return {
+        type, caseNum,
+        attackRadiusKm: 1,
+        // For A1: hazard circle r=10 km. For A2: D from Table E-2 (UNVERIFIED)
+        // or Table E-3 simplified (transcribed); user may also supply.
+        hazardRadiusKm: caseNum===1 ? 10 : null,
+        dhdSource: caseNum===2 ? 'lookup-required' : null,
+        warnings, citation:'Table E-1 Type A Case '+caseNum+'; Fig E-'+(caseNum===1?'5':'6')
+      };
+    }
+
+    // Type B
+    // Container groups [Table E-1]:
+    //  Group α: BML, SHL, MNE, surface-burst RKT/MSL → R=1 km (B1/B2)
+    //  Group β: BOM, UNK→RKT (handled above as RKT), air-burst RKT/MSL → R=2 km (B3/B4)
+    //  Group γ: SPR, GEN → 1 km (B5/B6 — line attacks; if treated as single point, R=1)
+    let group = 'α';
+    if (['SPR','GEN'].includes(container)) group = 'γ';
+    else if (container === 'BOM') group = 'β';
+    else if ((container === 'RKT' || container === 'MSL') && burst === 'air') group = 'β';
+    // (surface-burst RKT/MSL stay in group α)
+    let attackR, caseNum;
+    if (group === 'α'){ attackR = 1; caseNum = (windBand==='low'?1:2); }
+    else if (group === 'β'){ attackR = 2; caseNum = (windBand==='low'?3:4); }
+    else { // γ — SPR/GEN single-point (line-attack handled above)
+      attackR = 1; caseNum = (windBand==='low'?5:6);
+      warnings.push('SPR/GEN single-point geometry uses Case '+caseNum+' template at R=1 km — UNVERIFIED per M3.3 note');
+    }
+    return {
+      type:'B', caseNum,
+      attackRadiusKm: attackR,
+      hazardRadiusKm: (caseNum===1 || caseNum===3) ? 10 : null,
+      dhdSource: (caseNum===2 || caseNum===4) ? 'fixed-10' : null,
+      warnings,
+      citation:'Table E-1 Type B Case '+caseNum+'; Fig E-'+
+        ({1:'7',2:'8',3:'9',4:'10',5:'11',6:'12'}[caseNum])
+    };
+  }
+
+  /* ============================================================
+     DHD LOOKUP for Type A Case 2 [M3.5]
+     Precedence: (a) DHD supplied in message, else
+                 (b) Table E-2 detailed (UNVERIFIED — stub), else
+                 (c) Table E-3 simplified (transcribed above).
+     Returns:    { dhdKm, source, warnings }
+     ============================================================ */
+  function lookupDhd(determ, inp){
+    const w = [];
+    if (inp.providedDhdKm != null && isFinite(inp.providedDhdKm)){
+      return { dhdKm: inp.providedDhdKm, source:'message-supplied', warnings:w };
+    }
+    // Table E-2 detailed: not transcribed; mark UNVERIFIED.
+    w.push('Table E-2 (detailed DHD) not transcribed — using Table E-3 simplified [UNVERIFIED]');
+    const band = stabilityBand(inp.stabilityCode);
+    if (!band){
+      w.push('stability code '+inp.stabilityCode+' could not be mapped to {Unstable,Neutral,Stable} — defaulting to Neutral [UNVERIFIED Table D-14]');
+    }
+    const useBand = band || 'Neutral';
+    const grp = dhdGroup(inp.container, inp.burst);
+    const dhd = TABLE_E3[grp][useBand];
+    return { dhdKm: dhd, source:'table-e3', stabilityBand:useBand, dhdGroup:grp, warnings:w };
+  }
+
+  /* ============================================================
+     GEOMETRY ENGINE [M3.5]
+     Pure functions returning renderer-independent shape primitives.
+     All coordinates in km, attack center at origin (or first end
+     point for line attacks); +x = grid east, +y = grid north.
+     Each shape has a `role` so the renderer can style consistently.
+     ============================================================ */
+
+  // azimuth in degrees grid (0=N, clockwise) → unit vector (km/km).
+  function azimuthToVec(deg){
+    const r = deg * Math.PI/180;
+    return { x: Math.sin(r), y: Math.cos(r) };
+  }
+
+  function concentric(centerLabel, attackR, hazardR){
+    return {
+      shapes: [
+        { kind:'circle', cx:0, cy:0, r:hazardR, role:'hazard',
+          label:'Hazard area r='+hazardR+' km' },
+        { kind:'circle', cx:0, cy:0, r:attackR, role:'attack',
+          label:'Attack area r='+attackR+' km' },
+        { kind:'point', cx:0, cy:0, label: centerLabel||'attack center' }
+      ],
+      extentKm: hazardR * 1.15
+    };
+  }
+
+  // Single-wedge construction [M3.5 shape family 2].
+  // axisDeg = grid downwind azimuth from the message/CDM.
+  function singleWedge(centerLabel, attackR, axisDeg, dhdKm){
+    const d = azimuthToVec(axisDeg);           // downwind unit vector
+    const upwindLen = 2 * attackR;             // 2R upwind point
+    const U = { x: -d.x * upwindLen, y: -d.y * upwindLen };
+    // tangent directions: azimuth ± 30°
+    const dPlus  = azimuthToVec(axisDeg + 30);
+    const dMinus = azimuthToVec(axisDeg - 30);
+    const t = (dhdKm + upwindLen) / Math.cos(30 * Math.PI/180);
+    const A = { x: U.x + t * dPlus.x,  y: U.y + t * dPlus.y };
+    const B = { x: U.x + t * dMinus.x, y: U.y + t * dMinus.y };
+    const downwindEnd = { x: d.x * dhdKm, y: d.y * dhdKm };
+    return {
+      shapes: [
+        { kind:'wedge', U, A, B, axisDeg, halfAngleDeg:30,
+          attackR, upwindKm: upwindLen, dhdKm,
+          role:'hazard', label:'Hazard wedge to D='+dhdKm+' km' },
+        { kind:'circle', cx:0, cy:0, r:attackR, role:'attack',
+          label:'Attack area r='+attackR+' km' },
+        { kind:'arrow-axis', from:{x:0,y:0}, to:downwindEnd, axisDeg,
+          label:'Downwind '+(Math.round(axisDeg))+'°' },
+        { kind:'line-perp', at:downwindEnd, axisDeg, length: t * Math.sin(30*Math.PI/180) * 2.2,
+          label:'Perpendicular at D' },
+        { kind:'upwind-mark', at:U, label:'Upwind 2R = '+upwindLen+' km' },
+        { kind:'point', cx:0, cy:0, label: centerLabel||'attack center' }
+      ],
+      // extent: max of |U|, |A|, |B|, plus margin
+      extentKm: Math.max(Math.hypot(A.x,A.y), Math.hypot(B.x,B.y), Math.hypot(U.x,U.y)) * 1.15
+    };
+  }
+
+  // Line attack — Case 5 (≤10 kph) [M3.5 shape family 3]
+  // Endpoints p1, p2 in km coords. Returns capsule attack + capsule hazard.
+  function lineAttackCase5(p1, p2, endpointLabels){
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
+    const len = Math.hypot(dx, dy) || 1e-9;
+    const ux = dx/len, uy = dy/len;          // along attack line
+    const nx = -uy, ny = ux;                 // perpendicular (left)
+    const attackR = 1, hazardR = 10;
+    function capsule(r, role, label){
+      return { kind:'capsule', p1, p2, r, ux, uy, nx, ny, role, label };
+    }
+    return {
+      // No inline labels on the points; line-attack annotations layer
+      // positions endpoint grid labels with explicit offsets so they
+      // don't collide with each other or the area labels.
+      shapes: [
+        capsule(hazardR, 'hazard', 'Hazard capsule r='+hazardR+' km'),
+        capsule(attackR, 'attack', 'Attack capsule r='+attackR+' km'),
+        { kind:'point', cx:p1.x, cy:p1.y, _gridLabel: endpointLabels[0]||'end 1' },
+        { kind:'point', cx:p2.x, cy:p2.y, _gridLabel: endpointLabels[1]||'end 2' }
+      ],
+      extentKm: Math.max(
+        Math.hypot(p1.x, p1.y),
+        Math.hypot(p2.x, p2.y)
+      ) + hazardR * 1.15
+    };
+  }
+
+  // Line attack — Case 6 (>10 kph) [M3.5 shape family 3]
+  // Per endpoint: full wedge using D=10 km. Combined hazard polygon
+  // connects the downwind corners of the two wedges.
+  // (Connection interpretation flagged UNVERIFIED — see M3.3 note.)
+  function lineAttackCase6(p1, p2, axisDeg, endpointLabels){
+    const attackR = 1, dhdKm = 10;
+    function wedgeAt(c){
+      const d  = azimuthToVec(axisDeg);
+      const U  = { x: c.x - d.x*2*attackR, y: c.y - d.y*2*attackR };
+      const dP = azimuthToVec(axisDeg + 30);
+      const dM = azimuthToVec(axisDeg - 30);
+      const t  = (dhdKm + 2*attackR) / Math.cos(30*Math.PI/180);
+      const A  = { x: U.x + t*dP.x, y: U.y + t*dP.y };
+      const B  = { x: U.x + t*dM.x, y: U.y + t*dM.y };
+      return { U, A, B };
+    }
+    const w1 = wedgeAt(p1), w2 = wedgeAt(p2);
+    // Connect downwind corners (UNVERIFIED interpretation):
+    // polygon enclosing both wedges by joining A_i across endpoints
+    // and B_i across endpoints.
+    const combinedHazardPolygon = [w1.U, w1.A, w2.A, w2.U, w2.B, w1.B];
+
+    // Capsule attack between the two endpoints
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
+    const len = Math.hypot(dx,dy) || 1e-9;
+    const ux = dx/len, uy = dy/len, nx = -uy, ny = ux;
+
+    return {
+      shapes: [
+        { kind:'polygon', points: combinedHazardPolygon, role:'hazard',
+          label:'Combined hazard (connects downwind corners) [UNVERIFIED interpretation]' },
+        { kind:'capsule', p1, p2, r:attackR, ux, uy, nx, ny, role:'attack',
+          label:'Attack capsule r='+attackR+' km' },
+        { kind:'wedge', U:w1.U, A:w1.A, B:w1.B, axisDeg, halfAngleDeg:30,
+          attackR, upwindKm:2*attackR, dhdKm, role:'hazard-line',
+          label:'End 1 wedge' },
+        { kind:'wedge', U:w2.U, A:w2.A, B:w2.B, axisDeg, halfAngleDeg:30,
+          attackR, upwindKm:2*attackR, dhdKm, role:'hazard-line',
+          label:'End 2 wedge' },
+        { kind:'point', cx:p1.x, cy:p1.y, _gridLabel: endpointLabels[0]||'end 1' },
+        { kind:'point', cx:p2.x, cy:p2.y, _gridLabel: endpointLabels[1]||'end 2' }
+      ],
+      extentKm: Math.max(
+        Math.hypot(w1.A.x,w1.A.y), Math.hypot(w1.B.x,w1.B.y),
+        Math.hypot(w2.A.x,w2.A.y), Math.hypot(w2.B.x,w2.B.y),
+        Math.hypot(w1.U.x,w1.U.y), Math.hypot(w2.U.x,w2.U.y)
+      ) * 1.15
+    };
+  }
+
+  /* ============================================================
+     COMPUTE — top-level orchestrator returning a GeometryResult.
+     Input:  { container, burst, persistency, agent, windSpeedKph,
+               stabilityCode, downwindDirectionDeg, isNbc4, isLineAttack,
+               endpoints:[{x,y,label}], primaryLabel, providedDhdKm,
+               tempC, gentextStatement }
+     Output: { determination, geometry, dimensions, computation,
+               maskRemoval, conflicts, errors }
+     ============================================================ */
+  function compute(inp){
+    const errors = [];
+    const determ = determine(inp);
+    const dimensions = {
+      type: determ.type, caseNum: determ.caseNum,
+      attackRadiusKm: determ.attackRadiusKm,
+      hazardRangeKm: determ.hazardRadiusKm,
+      downwindDirDeg: inp.downwindDirectionDeg,
+      upwindKm: null, halfAngleDeg: null
+    };
+
+    let geometry = null;
+    let dhd = null;
+
+    const needsDirection = ['A','B'].includes(determ.type) &&
+      (determ.caseNum===2 || determ.caseNum===4 || determ.caseNum===6);
+    if (needsDirection && (inp.downwindDirectionDeg == null || isNaN(inp.downwindDirectionDeg))){
+      errors.push('downwind direction missing — required for Case '+determ.caseNum);
+    }
+
+    if (determ.type === 'C'){
+      geometry = concentric(inp.primaryLabel || 'detection', 10, 10);
+      // For Type C the inner circle equals outer — drop the duplicate
+      geometry.shapes = geometry.shapes.filter(s=>!(s.kind==='circle' && s.role==='attack'));
+      geometry.shapes.unshift({ kind:'circle', cx:0, cy:0, r:10, role:'attack-hazard',
+        label:'Attack + hazard area r=10 km' });
+    } else if (determ.caseNum === 1 || determ.caseNum === 3){
+      geometry = concentric(inp.primaryLabel, determ.attackRadiusKm, 10);
+    } else if (determ.caseNum === 2){
+      // A2 needs DHD; B2 D=10 always.
+      if (determ.type === 'A'){
+        dhd = lookupDhd(determ, inp);
+        dimensions.hazardRangeKm = dhd.dhdKm;
+      } else {
+        dhd = { dhdKm:10, source:'fixed-10', warnings:[] };
+        dimensions.hazardRangeKm = 10;
+      }
+      dimensions.upwindKm = 2 * determ.attackRadiusKm;
+      dimensions.halfAngleDeg = 30;
+      geometry = singleWedge(inp.primaryLabel, determ.attackRadiusKm,
+        inp.downwindDirectionDeg||0, dhd.dhdKm);
+    } else if (determ.caseNum === 4){
+      // B4: R=2, D=10 always, upwind 4 km
+      dhd = { dhdKm:10, source:'fixed-10', warnings:[] };
+      dimensions.hazardRangeKm = 10;
+      dimensions.upwindKm = 2 * determ.attackRadiusKm;  // = 4 km
+      dimensions.halfAngleDeg = 30;
+      geometry = singleWedge(inp.primaryLabel, determ.attackRadiusKm,
+        inp.downwindDirectionDeg||0, dhd.dhdKm);
+    } else if (determ.caseNum === 5 || determ.caseNum === 6){
+      const eps = inp.endpoints || [];
+      if (eps.length < 2){
+        errors.push('Case '+determ.caseNum+' requires ≥2 attack-line endpoints');
+        geometry = { shapes:[], extentKm:5 };
+      } else {
+        const labels = eps.map(e=>e.label || '');
+        if (determ.caseNum === 5){
+          geometry = lineAttackCase5(eps[0], eps[1], labels);
+          dimensions.hazardRangeKm = 10;
+        } else {
+          dimensions.upwindKm = 2 * determ.attackRadiusKm;
+          dimensions.halfAngleDeg = 30;
+          dimensions.hazardRangeKm = 10;
+          geometry = lineAttackCase6(eps[0], eps[1], inp.downwindDirectionDeg||0, labels);
+        }
+      }
+    } else {
+      errors.push('case '+determ.caseNum+' geometry not implemented');
+      geometry = { shapes:[], extentKm:5 };
+    }
+
+    // GENTEXT cross-check [M3.4]
+    const conflicts = [];
+    if (inp.gentextStatement){
+      const m = String(inp.gentextStatement).toUpperCase()
+        .match(/TYPE\s+([ABC])\s*,?\s*CASE\s*(\d+)?/);
+      if (m){
+        const statedType = m[1], statedCase = m[2] ? parseInt(m[2],10) : null;
+        const agree = (statedType === determ.type) &&
+          (statedCase === determ.caseNum || (statedCase==null && determ.type==='C'));
+        if (!agree){
+          conflicts.push({
+            stated: 'Type '+statedType+(statedCase?(' Case '+statedCase):''),
+            computed: 'Type '+determ.type+(determ.caseNum?(' Case '+determ.caseNum):''),
+            severity:'conflict'
+          });
+        } else {
+          conflicts.push({
+            stated: 'Type '+statedType+(statedCase?(' Case '+statedCase):''),
+            computed: 'Type '+determ.type+(determ.caseNum?(' Case '+determ.caseNum):''),
+            severity:'match'
+          });
+        }
+      } else {
+        conflicts.push({ note:'GENTEXT not in "TYPE X, CASE Y" form — skipped cross-check', severity:'skip' });
+      }
+    }
+
+    const computation = {
+      inputs: {
+        container: inp.container, burst: inp.burst,
+        persistency: inp.persistency, agent: inp.agent,
+        windSpeedKph: inp.windSpeedKph, stabilityCode: inp.stabilityCode,
+        downwindDirectionDeg: inp.downwindDirectionDeg,
+        isNbc4: !!inp.isNbc4, isLineAttack: !!inp.isLineAttack
+      },
+      determination: determ,
+      dhd
+    };
+
+    const maskRemoval = (determ.type === 'B') ? maskRemovalTime(inp.tempC) : null;
+
+    // On-plot dimension/region/angle annotations per M3.6. Added to a
+    // separate `annotations` array so geometry tests (which inspect
+    // `shapes` for primitive shapes only) are unaffected.
+    geometry.annotations = addAnnotations(geometry, determ, dimensions);
+
+    return {
+      determination: determ, geometry, dimensions,
+      computation, maskRemoval, conflicts, errors,
+      warnings: [...(determ.warnings||[]), ...(dhd && dhd.warnings ? dhd.warnings : [])]
+    };
+  }
+
+  /* ============================================================
+     addAnnotations — produces on-plot dimension / region labels and
+     angle arcs that match the manual's Appendix E figure style:
+     - Radial dimension arrows from the attack center (e.g., "1 km",
+       "10 km") with tick caps and a label on one side of the arrow.
+     - Region labels ("Attack Area", "Hazard Area") with optional
+       leader lines pointing into tight regions (per Fig E-5).
+     - 30° wedge half-angle arcs at the upwind point (Fig E-6, E-8,
+       E-10).
+     Annotation primitives (drawn by drawShape):
+       { kind:'dim-arrow', from, to, label, side:'left|right|above|below' }
+       { kind:'region-label', at:{x,y}, text, leaderTo?:{x,y} }
+       { kind:'angle-arc', at:{x,y}, fromDeg, toDeg, r, label }
+       { kind:'frame' }    — plot-area rectangular border
+     ============================================================ */
+  function addAnnotations(geometry, determ, dims){
+    const ann = [ { kind:'frame' } ];
+    const R = dims.attackRadiusKm;
+    const D = dims.hazardRangeKm;
+    const axisDeg = dims.downwindDirDeg;
+
+    // Type C — single attack+hazard circle of r=10 km [Fig E-13]
+    if (determ.type === 'C'){
+      ann.push({ kind:'dim-arrow', from:{x:0,y:0}, to:{x:0,y:-10},
+        label:'10 km', side:'right' });
+      ann.push({ kind:'region-label', at:{x:0, y:7},
+        text:'Attack + Hazard Area' });
+      return ann;
+    }
+
+    // Concentric (A1, B1, B3) [Figs E-5, E-7, E-9]
+    if (determ.caseNum === 1 || determ.caseNum === 3){
+      // "R km" arrow from center to attack-circle edge (left)
+      ann.push({ kind:'dim-arrow', from:{x:0,y:0}, to:{x:-R, y:0},
+        label: R+' km', side:'below' });
+      // Hazard arrow from center to hazard-circle edge (down)
+      ann.push({ kind:'dim-arrow', from:{x:0,y:0}, to:{x:0, y:-D},
+        label: D+' km', side:'right' });
+      // Region labels in the hazard ring (upper-left, lower-right)
+      const ring = (R + D) / 2;
+      ann.push({ kind:'region-label', at:{x:-ring*0.7, y: ring*0.7},
+        text:'Hazard Area' });
+      ann.push({ kind:'region-label', at:{x: ring*0.7, y:-ring*0.7},
+        text:'Hazard Area' });
+      // Attack Area label outside, leader line into the small circle
+      ann.push({ kind:'region-label', at:{x: D*0.55, y: R + (D-R)*0.25},
+        text:'Attack Area', leaderTo:{x: R*0.5, y: R*0.3} });
+      return ann;
+    }
+
+    // Wedge cases (A2, B2, B4) [Figs E-6, E-8, E-10]
+    if (determ.caseNum === 2 || determ.caseNum === 4){
+      const d = azimuthToVec(axisDeg || 0);
+      // Perpendicular-left (90° CCW from downwind): used for the
+      // attack-radius arrow, perpendicular to the wedge axis.
+      const perpL = { x: -d.y, y: d.x };
+      // Attack radius arrow
+      ann.push({ kind:'dim-arrow', from:{x:0,y:0},
+        to:{ x: perpL.x*R, y: perpL.y*R }, label: R+' km', side:'below' });
+      // D arrow along downwind axis
+      ann.push({ kind:'dim-arrow', from:{x:0,y:0},
+        to:{ x: d.x*D, y: d.y*D }, label: D+' km', side:'right' });
+      // Upwind 2R arrow (opposite downwind)
+      const upwind = { x: -d.x*2*R, y: -d.y*2*R };
+      ann.push({ kind:'dim-arrow', from:{x:0,y:0}, to: upwind,
+        label: (2*R)+' km', side:'right' });
+      // 30° angle arcs at the upwind point — one on each side of the
+      // downwind axis. The arc spans from the axis pointing back at
+      // the attack center (azimuth axisDeg) to the tangent (±30°).
+      ann.push({ kind:'angle-arc', at: upwind, fromDeg: axisDeg,
+        toDeg: axisDeg + 30, r: 0.9, label:'30°' });
+      ann.push({ kind:'angle-arc', at: upwind, fromDeg: axisDeg - 30,
+        toDeg: axisDeg, r: 0.9, label:'30°' });
+      // Region labels
+      ann.push({ kind:'region-label', at:{ x: perpL.x*(R+1.2), y: perpL.y*(R+1.2) },
+        text:'Attack Area', leaderTo:{ x: perpL.x*R*0.4, y: perpL.y*R*0.4 } });
+      ann.push({ kind:'region-label', at:{ x: d.x*D*0.55, y: d.y*D*0.55 },
+        text:'Hazard Area' });
+      return ann;
+    }
+
+    // Line attack — Case 5 (capsule, ≤10 kph) [Fig E-11].
+    // Layout matches the manual figure:
+    //   - "10-km DHD" arrows extending OUTWARD from each end-point
+    //     along the attack-line direction (line-axis radius)
+    //   - "1 km" small radius arrow on one attack circle, perpendicular
+    //   - "Hazard Area" labels above AND below the elongated envelope
+    //     (offset by hazardR perpendicular to the attack line)
+    //   - "Attack Area" label offset perpendicular by attackR+small gap
+    //     so it doesn't collide with the grid labels
+    //   - Endpoint grid labels positioned along the line, outside each
+    //     other so they never overlap
+    if (determ.caseNum === 5){
+      const caps = geometry.shapes.filter(s=>s.kind==='capsule');
+      if (caps.length){
+        const c0 = caps[0];
+        const hazardR = 10, attackR = 1;
+        const ux = c0.ux, uy = c0.uy;       // along attack line (p1→p2)
+        const nx = c0.nx, ny = c0.ny;       // perpendicular
+        const mid = { x:(c0.p1.x+c0.p2.x)/2, y:(c0.p1.y+c0.p2.y)/2 };
+        // Hazard radius arrows along the attack-line axis — outward
+        // from each end-point to the edge of its 10-km hazard circle.
+        ann.push({ kind:'dim-arrow',
+          from: c0.p1,
+          to:   { x: c0.p1.x - ux*hazardR, y: c0.p1.y - uy*hazardR },
+          label: hazardR+' km', side:'below' });
+        ann.push({ kind:'dim-arrow',
+          from: c0.p2,
+          to:   { x: c0.p2.x + ux*hazardR, y: c0.p2.y + uy*hazardR },
+          label: hazardR+' km', side:'below' });
+        // Attack-radius arrow on the first end-point, perpendicular up.
+        ann.push({ kind:'dim-arrow',
+          from: c0.p1,
+          to:   { x: c0.p1.x + nx*attackR, y: c0.p1.y + ny*attackR },
+          label: attackR+' km', side:'right' });
+        // Hazard Area labels above and below the combined envelope.
+        ann.push({ kind:'region-label',
+          at:{ x: mid.x + nx*hazardR*0.6, y: mid.y + ny*hazardR*0.6 },
+          text:'Hazard Area' });
+        ann.push({ kind:'region-label',
+          at:{ x: mid.x - nx*hazardR*0.6, y: mid.y - ny*hazardR*0.6 },
+          text:'Hazard Area' });
+        // Attack Area label offset perpendicular by ~2× attack radius
+        // so it sits clear of the capsule and grid labels.
+        ann.push({ kind:'region-label',
+          at:{ x: mid.x + nx*attackR*2.2, y: mid.y + ny*attackR*2.2 },
+          text:'Attack Area',
+          leaderTo:{ x: mid.x + nx*attackR*0.6, y: mid.y + ny*attackR*0.6 } });
+        // Endpoint grid labels — just below the attack line near the
+        // dot, on opposite sides of the line midpoint so they never
+        // collide and always fit inside the visible plot area
+        // (avoids edge clipping at higher zoom levels).
+        const pts = geometry.shapes.filter(s=>s.kind==='point');
+        const offX = -nx, offY = -ny;          // perpendicular "below" relative to nx,ny
+        const labelGap = attackR + 0.7;        // 1.7 km perp from the dot
+        if (pts[0] && pts[0]._gridLabel){
+          ann.push({ kind:'region-label',
+            at:{ x: pts[0].cx - ux*1.2 + offX*labelGap,
+                 y: pts[0].cy - uy*1.2 + offY*labelGap },
+            text: pts[0]._gridLabel });
+        }
+        if (pts[1] && pts[1]._gridLabel){
+          ann.push({ kind:'region-label',
+            at:{ x: pts[1].cx + ux*1.2 + offX*labelGap,
+                 y: pts[1].cy + uy*1.2 + offY*labelGap },
+            text: pts[1]._gridLabel });
+        }
+      }
+      return ann;
+    }
+
+    // Line attack — Case 6 (combined wedges, >10 kph) [Fig E-12]
+    if (determ.caseNum === 6){
+      const d = axisDeg != null ? azimuthToVec(axisDeg) : { x:0, y:-1 };
+      const wedges = geometry.shapes.filter(s=>s.kind==='wedge');
+      // For each wedge, add R, D, 2R and 30° arcs
+      wedges.forEach((w, i)=>{
+        const center = { x:(w.A.x+w.B.x)/2 - d.x*w.dhdKm,
+                         y:(w.A.y+w.B.y)/2 - d.y*w.dhdKm };
+        // (center is reconstructed from corner midpoint minus D*downwind)
+        const perpL = { x:-d.y, y:d.x };
+        if (i === 0){
+          ann.push({ kind:'dim-arrow', from:center,
+            to:{ x:center.x + perpL.x*w.attackR, y:center.y + perpL.y*w.attackR },
+            label: w.attackR+' km', side:'below' });
+          ann.push({ kind:'dim-arrow', from:center,
+            to:{ x:center.x + d.x*w.dhdKm, y:center.y + d.y*w.dhdKm },
+            label: w.dhdKm+' km', side:'right' });
+          ann.push({ kind:'angle-arc', at:w.U, fromDeg: axisDeg||0,
+            toDeg:(axisDeg||0) + 30, r: 0.9, label:'30°' });
+          ann.push({ kind:'angle-arc', at:w.U, fromDeg:(axisDeg||0) - 30,
+            toDeg: axisDeg||0, r: 0.9, label:'30°' });
+        }
+      });
+      ann.push({ kind:'region-label', at:{x:0, y:0}, text:'Attack Area' });
+      // Hazard label downwind of the midpoint between the two endpoints
+      ann.push({ kind:'region-label',
+        at:{ x: d.x*8, y: d.y*8 }, text:'Hazard Area' });
+      // Endpoint grid labels — outside the wedge envelope along the
+      // attack-line axis (not the downwind axis) so they don't collide.
+      const pts = geometry.shapes.filter(s=>s.kind==='point');
+      if (pts.length >= 2 && pts[0]._gridLabel && pts[1]._gridLabel){
+        const lx = pts[1].cx - pts[0].cx, ly = pts[1].cy - pts[0].cy;
+        const llen = Math.hypot(lx, ly) || 1;
+        const lux = lx/llen, luy = ly/llen;
+        ann.push({ kind:'region-label',
+          at:{ x: pts[0].cx - lux*3, y: pts[0].cy - luy*3 },
+          text: pts[0]._gridLabel });
+        ann.push({ kind:'region-label',
+          at:{ x: pts[1].cx + lux*3, y: pts[1].cy + luy*3 },
+          text: pts[1]._gridLabel });
+      }
+      return ann;
+    }
+
+    return ann;
+  }
+
+  /* ============================================================
+     RENDERER — Canvas 2D schematic [M3.2 / M3.6]
+     - North-up (Grid North up), to scale (1 grid square = 1 km)
+     - Auto-fit to extentKm with margin
+     - Draws GN arrow, scale bar, labels
+     - Burns TRAINING USE ONLY banner top
+     ============================================================ */
+  // Viewport opts (R-3 zoom support):
+  //   zoom        — multiplier on the auto-fit scale (1 = fit; >1 = zoom in)
+  //   centerKm    — km coordinate that maps to plot-area center
+  //                 (defaults to {0,0} — the attack center)
+  //   width/height — explicit canvas size (used by PNG export)
+  function render(canvas, result, opts){
+    opts = opts || {};
+    const zoom = opts.zoom || 1;
+    const centerKm = opts.centerKm || { x:0, y:0 };
+
+    const ctx = canvas.getContext('2d');
+    const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+    const cssW = canvas.clientWidth || opts.width  || 720;
+    const cssH = canvas.clientHeight || opts.height || cssW;
+    canvas.width  = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,cssW,cssH);
+
+    // Layout: banner (top), plot area below.
+    const bannerH = 28;
+    ctx.fillStyle = '#ffd000';
+    ctx.fillRect(0,0,cssW,bannerH);
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 13px -apple-system,system-ui,sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('TRAINING USE ONLY — Not for operational use', cssW/2, bannerH/2);
+
+    const plotTop = bannerH + 8;
+    const plotH = cssH - plotTop - 8;
+    const plotLeft = 8;
+    const plotW = cssW - 16;
+
+    const ext = Math.max(1, result.geometry.extentKm || 10);
+    const baseScale = Math.min(plotW, plotH) / (2 * ext);
+    const scale = baseScale * zoom;
+    const cx = plotLeft + plotW/2;
+    const cy = plotTop  + plotH/2;
+    // km → px helper: y inverted because canvas y goes down.
+    function X(kmX){ return cx + (kmX - centerKm.x) * scale; }
+    function Y(kmY){ return cy - (kmY - centerKm.y) * scale; }
+    // Inverse — px (relative to canvas top-left) → km. Exposed for
+    // wheel/pinch handlers that need to anchor a screen point.
+    function invX(px){ return centerKm.x + (px - cx) / scale; }
+    function invY(py){ return centerKm.y - (py - cy) / scale; }
+
+    // Clip drawing to the plot area so zoomed content doesn't bleed
+    // over the banner / scale bar / GN arrow.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(plotLeft, plotTop, plotW, plotH);
+    ctx.clip();
+
+    // Grid (1 km squares) — generated only for currently-visible km range
+    ctx.save();
+    ctx.strokeStyle = '#eee'; ctx.lineWidth = 1;
+    const startKx = Math.floor(invX(plotLeft));
+    const endKx   = Math.ceil (invX(plotLeft + plotW));
+    const startKy = Math.floor(invY(plotTop + plotH));
+    const endKy   = Math.ceil (invY(plotTop));
+    ctx.beginPath();
+    for (let k=startKx; k<=endKx; k++){
+      ctx.moveTo(X(k), Y(startKy)); ctx.lineTo(X(k), Y(endKy));
+    }
+    for (let k=startKy; k<=endKy; k++){
+      ctx.moveTo(X(startKx), Y(k)); ctx.lineTo(X(endKx), Y(k));
+    }
+    ctx.stroke();
+    // Axes
+    ctx.strokeStyle = '#999'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(X(startKx), Y(0)); ctx.lineTo(X(endKx), Y(0));
+    ctx.moveTo(X(0), Y(startKy)); ctx.lineTo(X(0), Y(endKy));
+    ctx.stroke();
+    ctx.restore();
+
+    // Shapes (fills/strokes for circles/wedges/capsules/polygons)
+    for (const s of result.geometry.shapes){
+      drawShape(ctx, s, X, Y, scale);
+    }
+    // Annotations pass 1: lines / leaders / arcs — INSIDE the plot
+    // clip so geometry stays bounded.
+    const anns = result.geometry.annotations || [];
+    for (const s of anns){
+      if (s.kind === 'frame') continue;   // drawn after clip release
+      drawAnnotation(ctx, s, X, Y, scale, plotLeft, plotTop, plotW, plotH, 'lines');
+    }
+
+    // Release the plot-area clip so the frame border, GN arrow, scale
+    // bar, title block, AND annotation labels render unclipped (this
+    // is what prevents grid labels like "32UNG420620" from being
+    // truncated to "20620" when their anchor falls near the edge).
+    ctx.restore();
+    for (const s of anns){
+      if (s.kind === 'frame') drawAnnotation(ctx, s, X, Y, scale, plotLeft, plotTop, plotW, plotH, 'lines');
+    }
+    // Annotations pass 2: TEXT only — OUTSIDE the clip.
+    for (const s of anns){
+      if (s.kind === 'frame') continue;
+      drawAnnotation(ctx, s, X, Y, scale, plotLeft, plotTop, plotW, plotH, 'text');
+    }
+
+    // GN arrow (top-left)
+    ctx.save();
+    const gnX = plotLeft + 24, gnY = plotTop + 32;
+    ctx.strokeStyle = '#000'; ctx.fillStyle = '#000'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(gnX, gnY + 22); ctx.lineTo(gnX, gnY - 10);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(gnX - 6, gnY - 4); ctx.lineTo(gnX, gnY - 12); ctx.lineTo(gnX + 6, gnY - 4); ctx.closePath();
+    ctx.fill();
+    ctx.font = 'bold 12px -apple-system,system-ui,sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('GN', gnX, gnY + 24);
+    ctx.restore();
+
+    // Scale bar (bottom-right) — picks a "nice" km value so the bar
+    // is roughly 80–140px wide at the current zoom.
+    ctx.save();
+    const targetPx = 110;
+    const nice = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500];
+    let sbLen = nice[0];
+    for (const n of nice){ if (n*scale <= targetPx*1.4) sbLen = n; }
+    const sbX = plotLeft + plotW - 16 - sbLen * scale;
+    const sbY = plotTop + plotH - 16;
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(sbX, sbY); ctx.lineTo(sbX + sbLen*scale, sbY);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(sbX, sbY-4); ctx.lineTo(sbX, sbY+4);
+    ctx.moveTo(sbX + sbLen*scale, sbY-4); ctx.lineTo(sbX + sbLen*scale, sbY+4);
+    ctx.stroke();
+    ctx.fillStyle = '#000';
+    ctx.font = '11px -apple-system,system-ui,sans-serif';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+    ctx.fillText(sbLen+' km', sbX + sbLen*scale, sbY - 6);
+    const zoomTxt = (zoom === 1) ? '1 grid square = 1 km' : ('zoom '+zoom.toFixed(2)+'×  ·  1 grid square = 1 km');
+    ctx.fillText(zoomTxt, sbX + sbLen*scale, sbY + 16);
+    ctx.restore();
+
+    // Title / labels block (top-right)
+    ctx.save();
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 13px -apple-system,system-ui,sans-serif';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+    const d = result.dimensions;
+    const titleParts = [];
+    titleParts.push('Type '+d.type+(d.caseNum?(' Case '+d.caseNum):''));
+    ctx.fillText(titleParts.join('  '), plotLeft + plotW - 8, plotTop + 4);
+    ctx.font = '11px -apple-system,system-ui,sans-serif';
+    let ty = plotTop + 24;
+    if (d.attackRadiusKm != null){ ctx.fillText('attack r = '+d.attackRadiusKm+' km', plotLeft+plotW-8, ty); ty+=14; }
+    if (d.hazardRangeKm != null){
+      const lab = (d.type==='A' && d.caseNum===2) || (d.type==='B' && (d.caseNum===2||d.caseNum===4||d.caseNum===6))
+        ? 'D (hazard) = '+d.hazardRangeKm+' km'
+        : 'hazard r = '+d.hazardRangeKm+' km';
+      ctx.fillText(lab, plotLeft+plotW-8, ty); ty+=14;
+    }
+    if (d.downwindDirDeg != null){ ctx.fillText('downwind '+Math.round(d.downwindDirDeg)+'°', plotLeft+plotW-8, ty); ty+=14; }
+    if (d.upwindKm != null){ ctx.fillText('upwind 2R = '+d.upwindKm+' km', plotLeft+plotW-8, ty); ty+=14; }
+    if (d.halfAngleDeg != null){ ctx.fillText('half-angle '+d.halfAngleDeg+'°', plotLeft+plotW-8, ty); ty+=14; }
+    ctx.restore();
+
+    // Expose viewport math so zoom/pan handlers can map screen px
+    // back to km coords without duplicating layout calculations.
+    canvas._cbrnView = {
+      zoom, centerKm:{...centerKm}, baseScale, scale,
+      cx, cy, plotLeft, plotTop, plotW, plotH,
+      pxToKm(px, py){ return { x: centerKm.x + (px - cx)/scale,
+                                y: centerKm.y - (py - cy)/scale }; }
+    };
+  }
+
+  function drawShape(ctx, s, X, Y, scale){
+    ctx.save();
+    if (s.kind === 'circle'){
+      const colors = roleColors(s.role);
+      ctx.beginPath();
+      ctx.arc(X(s.cx), Y(s.cy), s.r * scale, 0, Math.PI*2);
+      ctx.fillStyle = colors.fill; ctx.fill();
+      ctx.strokeStyle = colors.stroke; ctx.lineWidth = 2; ctx.stroke();
+    } else if (s.kind === 'wedge'){
+      const colors = roleColors(s.role);
+      ctx.beginPath();
+      ctx.moveTo(X(s.U.x), Y(s.U.y));
+      ctx.lineTo(X(s.A.x), Y(s.A.y));
+      ctx.lineTo(X(s.B.x), Y(s.B.y));
+      ctx.closePath();
+      ctx.fillStyle = colors.fill; ctx.fill();
+      ctx.strokeStyle = colors.stroke; ctx.lineWidth = 2; ctx.stroke();
+    } else if (s.kind === 'polygon'){
+      const colors = roleColors(s.role);
+      ctx.beginPath();
+      s.points.forEach((p,i)=>{ if(i===0) ctx.moveTo(X(p.x),Y(p.y)); else ctx.lineTo(X(p.x),Y(p.y)); });
+      ctx.closePath();
+      ctx.fillStyle = colors.fill; ctx.fill();
+      ctx.strokeStyle = colors.stroke; ctx.lineWidth = 2; ctx.stroke();
+    } else if (s.kind === 'capsule'){
+      const colors = roleColors(s.role);
+      // Capsule = circle p1 + rectangle (parallel to attack line) + circle p2
+      ctx.beginPath();
+      // Rect corners: p1±r*n, p2±r*n
+      const c1a = { x: s.p1.x + s.r*s.nx, y: s.p1.y + s.r*s.ny };
+      const c1b = { x: s.p1.x - s.r*s.nx, y: s.p1.y - s.r*s.ny };
+      const c2a = { x: s.p2.x + s.r*s.nx, y: s.p2.y + s.r*s.ny };
+      const c2b = { x: s.p2.x - s.r*s.nx, y: s.p2.y - s.r*s.ny };
+      ctx.moveTo(X(c1a.x), Y(c1a.y)); ctx.lineTo(X(c2a.x), Y(c2a.y));
+      ctx.lineTo(X(c2b.x), Y(c2b.y)); ctx.lineTo(X(c1b.x), Y(c1b.y));
+      ctx.closePath();
+      ctx.fillStyle = colors.fill; ctx.fill();
+      ctx.strokeStyle = colors.stroke; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(X(s.p1.x), Y(s.p1.y), s.r*scale, 0, Math.PI*2);
+      ctx.fillStyle = colors.fill; ctx.fill();
+      ctx.strokeStyle = colors.stroke; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(X(s.p2.x), Y(s.p2.y), s.r*scale, 0, Math.PI*2);
+      ctx.fillStyle = colors.fill; ctx.fill();
+      ctx.strokeStyle = colors.stroke; ctx.lineWidth = 2; ctx.stroke();
+    } else if (s.kind === 'arrow-axis'){
+      ctx.strokeStyle = '#333'; ctx.lineWidth = 1.5;
+      ctx.setLineDash([6,4]);
+      ctx.beginPath();
+      ctx.moveTo(X(s.from.x), Y(s.from.y));
+      ctx.lineTo(X(s.to.x), Y(s.to.y));
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Arrowhead
+      const ang = Math.atan2(Y(s.to.y)-Y(s.from.y), X(s.to.x)-X(s.from.x));
+      ctx.fillStyle = '#333';
+      ctx.beginPath();
+      ctx.moveTo(X(s.to.x), Y(s.to.y));
+      ctx.lineTo(X(s.to.x) - 8*Math.cos(ang - 0.3), Y(s.to.y) - 8*Math.sin(ang - 0.3));
+      ctx.lineTo(X(s.to.x) - 8*Math.cos(ang + 0.3), Y(s.to.y) - 8*Math.sin(ang + 0.3));
+      ctx.closePath(); ctx.fill();
+    } else if (s.kind === 'line-perp'){
+      const d = azimuthToVec(s.axisDeg);
+      const n = { x: -d.y, y: d.x };
+      const L = s.length || 5;
+      const p1 = { x: s.at.x + n.x*L, y: s.at.y + n.y*L };
+      const p2 = { x: s.at.x - n.x*L, y: s.at.y - n.y*L };
+      ctx.strokeStyle = '#333'; ctx.lineWidth = 1.5;
+      ctx.setLineDash([2,3]);
+      ctx.beginPath();
+      ctx.moveTo(X(p1.x), Y(p1.y)); ctx.lineTo(X(p2.x), Y(p2.y));
+      ctx.stroke(); ctx.setLineDash([]);
+    } else if (s.kind === 'upwind-mark'){
+      ctx.strokeStyle = '#666'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(X(s.at.x), Y(s.at.y), 4, 0, Math.PI*2);
+      ctx.stroke();
+    } else if (s.kind === 'point'){
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(X(s.cx), Y(s.cy), 3, 0, Math.PI*2);
+      ctx.fill();
+      if (s.label){
+        ctx.font = '11px -apple-system,system-ui,sans-serif';
+        ctx.fillStyle = '#000'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+        ctx.fillText(s.label, X(s.cx)+6, Y(s.cy)+4);
+      }
+    }
+    ctx.restore();
+  }
+
+  /* drawAnnotation — renders dim-arrow / region-label / angle-arc / frame */
+  // Two-phase rendering so labels never get truncated by the plot-area
+  // clip. The render loop calls this twice per annotation:
+  //   phase='lines' (inside plot-area clip): geometry — arrow lines,
+  //                                          leader lines, arcs, frame
+  //   phase='text'  (outside clip):          text labels only
+  function drawAnnotation(ctx, s, X, Y, scale, plotLeft, plotTop, plotW, plotH, phase){
+    ctx.save();
+    if (s.kind === 'frame'){
+      if (phase === 'lines'){
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
+        ctx.strokeRect(plotLeft+0.5, plotTop+0.5, plotW-1, plotH-1);
+      }
+    } else if (s.kind === 'dim-arrow'){
+      const x1 = X(s.from.x), y1 = Y(s.from.y);
+      const x2 = X(s.to.x),   y2 = Y(s.to.y);
+      const dx = x2 - x1, dy = y2 - y1;
+      const len = Math.hypot(dx, dy);
+      if (len < 1) { ctx.restore(); return; }
+      const ux = dx/len, uy = dy/len;
+      const tx = -uy, ty = ux;
+      if (phase === 'lines'){
+        const tick = 5;
+        ctx.strokeStyle = '#000'; ctx.fillStyle = '#000'; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+        ctx.stroke();
+        const ah = 8;
+        ctx.beginPath();
+        ctx.moveTo(x2, y2);
+        ctx.lineTo(x2 - ah*ux + (ah*0.5)*tx, y2 - ah*uy + (ah*0.5)*ty);
+        ctx.lineTo(x2 - ah*ux - (ah*0.5)*tx, y2 - ah*uy - (ah*0.5)*ty);
+        ctx.closePath(); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(x1 + tx*tick, y1 + ty*tick);
+        ctx.lineTo(x1 - tx*tick, y1 - ty*tick);
+        ctx.stroke();
+      } else if (phase === 'text' && s.label){
+        const mx = (x1 + x2)/2, my = (y1 + y2)/2;
+        const offset = 12;
+        let ox = 0, oy = 0;
+        switch (s.side){
+          case 'above': ox = -tx*offset; oy = -ty*offset; if (ty<0){ ox=-ox; oy=-oy; } break;
+          case 'below': ox = -tx*offset; oy = -ty*offset; if (ty>0){ ox=-ox; oy=-oy; } break;
+          case 'left':  ox =  tx*offset; oy =  ty*offset; if (tx>0){ ox=-ox; oy=-oy; } break;
+          case 'right': default: ox = tx*offset; oy = ty*offset; if (tx<0){ ox=-ox; oy=-oy; } break;
+        }
+        ctx.fillStyle = '#000';
+        ctx.font = '12px -apple-system,system-ui,sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.lineWidth = 3; ctx.strokeStyle = '#fff';
+        ctx.strokeText(s.label, mx + ox, my + oy);
+        ctx.fillText(s.label, mx + ox, my + oy);
+      }
+    } else if (s.kind === 'region-label'){
+      const x = X(s.at.x), y = Y(s.at.y);
+      ctx.font = '12px -apple-system,system-ui,sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (phase === 'lines' && s.leaderTo){
+        const tx = X(s.leaderTo.x), ty = Y(s.leaderTo.y);
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        const txtW = ctx.measureText(s.text).width;
+        const dx = tx - x, dy = ty - y, len = Math.hypot(dx,dy) || 1;
+        const sx = x + (dx/len) * (txtW/2 + 4);
+        const sy = y + (dy/len) * 8;
+        ctx.moveTo(sx, sy); ctx.lineTo(tx, ty);
+        ctx.stroke();
+        const ah = 6, ux = dx/len, uy = dy/len, ptx = -uy, pty = ux;
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.moveTo(tx, ty);
+        ctx.lineTo(tx - ah*ux + (ah*0.5)*ptx, ty - ah*uy + (ah*0.5)*pty);
+        ctx.lineTo(tx - ah*ux - (ah*0.5)*ptx, ty - ah*uy - (ah*0.5)*pty);
+        ctx.closePath(); ctx.fill();
+      } else if (phase === 'text'){
+        ctx.lineWidth = 3; ctx.strokeStyle = '#fff';
+        ctx.strokeText(s.text, x, y);
+        ctx.fillStyle = '#000';
+        ctx.fillText(s.text, x, y);
+      }
+    } else if (s.kind === 'angle-arc'){
+      const cx = X(s.at.x), cy = Y(s.at.y);
+      const r = (s.r || 1) * scale;
+      const a1 = (s.fromDeg - 90) * Math.PI/180;
+      const a2 = (s.toDeg   - 90) * Math.PI/180;
+      if (phase === 'lines'){
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, a1, a2, false);
+        ctx.stroke();
+      } else if (phase === 'text' && s.label){
+        const am = (a1 + a2) / 2;
+        const lx = cx + Math.cos(am) * (r + 12);
+        const ly = cy + Math.sin(am) * (r + 12);
+        ctx.font = '11px -apple-system,system-ui,sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.lineWidth = 3; ctx.strokeStyle = '#fff';
+        ctx.strokeText(s.label, lx, ly);
+        ctx.fillStyle = '#000';
+        ctx.fillText(s.label, lx, ly);
+      }
+    }
+    ctx.restore();
+  }
+
+  function roleColors(role){
+    // Hazard areas: red fill (semi-transparent); attack areas: orange.
+    // Line-attack hazards use a lighter fill because two circles plus
+    // the capsule stack at the endpoints and the cumulative alpha
+    // otherwise looks near-opaque.
+    if (role === 'attack' || role === 'attack-hazard')
+      return { fill: 'rgba(255,140,0,0.30)', stroke: '#c95a00' };
+    if (role === 'hazard-line')
+      return { fill: 'rgba(220,40,40,0.08)', stroke: '#a52020' };
+    if (role === 'hazard')
+      return { fill: 'rgba(220,40,40,0.10)', stroke: '#a52020' };
+    return { fill: 'rgba(0,0,0,0.05)', stroke: '#444' };
+  }
+
+  // Cloud arrival times [M3.5]
+  function arrivalTimes(distanceKm, windSpeedKph){
+    if (distanceKm == null || windSpeedKph == null || windSpeedKph <= 0) return null;
+    const leadKph  = windSpeedKph * 1.5;
+    const trailKph = windSpeedKph * 0.5;
+    return {
+      earliestMin: (distanceKm / leadKph)  * 60,
+      latestMin:   (distanceKm / trailKph) * 60
+    };
+  }
+
+  return {
+    CONTAINERS, PERSISTENCY,
+    determine, lookupDhd, maskRemovalTime, stabilityBand, dhdGroup,
+    azimuthToVec, concentric, singleWedge, lineAttackCase5, lineAttackCase6,
+    compute, render, arrivalTimes, TABLE_E3
+  };
+})();
+
+/* ============================================================
+   App.Module3 — Plotting UI
+   ============================================================ */
+App.Module3 = (function(){
+  const ui = {
+    endpoints: [],  // [{grid, distKm}, ...] additional endpoints beyond center
+    lastResult: null,
+    lastCanvas: null,
+    viewport: { zoom: 1, centerKm: { x:0, y:0 } }
+  };
+  const ZOOM_MIN = 0.25, ZOOM_MAX = 20;
+  function clampZoom(z){ return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z)); }
+  function rerender(){
+    if (!ui.lastCanvas || !ui.lastResult) return;
+    App.Plotting.render(ui.lastCanvas, ui.lastResult, ui.viewport);
+    const ro = document.getElementById('zoomReadout');
+    if (ro) ro.textContent = ui.viewport.zoom.toFixed(2)+'×';
+  }
+  function fitView(){ ui.viewport = { zoom: 1, centerKm: { x:0, y:0 } }; rerender(); }
+  function zoomBy(factor, anchorPx){
+    const v = ui.lastCanvas && ui.lastCanvas._cbrnView;
+    if (!v) return;
+    const newZoom = clampZoom(ui.viewport.zoom * factor);
+    if (newZoom === ui.viewport.zoom) return;
+    // Anchor zoom on a screen point (center of canvas if not given).
+    const px = anchorPx ? anchorPx.x : v.cx;
+    const py = anchorPx ? anchorPx.y : v.cy;
+    const kmAt = v.pxToKm(px, py);
+    const newScale = v.baseScale * newZoom;
+    ui.viewport = {
+      zoom: newZoom,
+      centerKm: {
+        x: kmAt.x - (px - v.cx) / newScale,
+        y: kmAt.y + (py - v.cy) / newScale
+      }
+    };
+    rerender();
+  }
+  function panBy(dxPx, dyPx){
+    const v = ui.lastCanvas && ui.lastCanvas._cbrnView;
+    if (!v) return;
+    ui.viewport = {
+      zoom: ui.viewport.zoom,
+      centerKm: {
+        x: ui.viewport.centerKm.x - dxPx / v.scale,
+        y: ui.viewport.centerKm.y + dyPx / v.scale
+      }
+    };
+    rerender();
+  }
+
+  function attachZoomPan(canvas){
+    // Wheel zoom (desktop) — Ctrl+wheel zooms in modern browsers; we
+    // accept plain wheel too since the canvas owns its scroll surface.
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const px = e.clientX - rect.left, py = e.clientY - rect.top;
+      const factor = e.deltaY > 0 ? 0.85 : 1.18;
+      zoomBy(factor, { x:px, y:py });
+    }, { passive:false });
+
+    // Pointer-based pan + pinch (works for mouse, touch, pen)
+    const pointers = new Map();    // pointerId → {x, y}
+    let lastPinchDist = 0;
+    let lastPinchMid  = null;
+
+    canvas.addEventListener('pointerdown', e => {
+      canvas.setPointerCapture(e.pointerId);
+      pointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
+      if (pointers.size === 2){
+        const pts = [...pointers.values()];
+        lastPinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        lastPinchMid  = { x:(pts[0].x+pts[1].x)/2, y:(pts[0].y+pts[1].y)/2 };
+      }
+    });
+    canvas.addEventListener('pointermove', e => {
+      if (!pointers.has(e.pointerId)) return;
+      const prev = pointers.get(e.pointerId);
+      pointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
+      if (pointers.size === 1){
+        // Single-pointer drag → pan
+        panBy(e.clientX - prev.x, e.clientY - prev.y);
+      } else if (pointers.size === 2){
+        const pts = [...pointers.values()];
+        const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        const mid  = { x:(pts[0].x+pts[1].x)/2, y:(pts[0].y+pts[1].y)/2 };
+        if (lastPinchDist > 0 && dist > 0){
+          const rect = canvas.getBoundingClientRect();
+          const anchor = { x: mid.x - rect.left, y: mid.y - rect.top };
+          zoomBy(dist / lastPinchDist, anchor);
+          // Pan by midpoint shift
+          if (lastPinchMid) panBy(mid.x - lastPinchMid.x, mid.y - lastPinchMid.y);
+        }
+        lastPinchDist = dist;
+        lastPinchMid  = mid;
+      }
+    });
+    function endPtr(e){
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2){ lastPinchDist = 0; lastPinchMid = null; }
+    }
+    canvas.addEventListener('pointerup',     endPtr);
+    canvas.addEventListener('pointercancel', endPtr);
+    canvas.addEventListener('pointerleave',  endPtr);
+
+    // Double-click / double-tap zoom in 2× at the click point
+    canvas.addEventListener('dblclick', e => {
+      const rect = canvas.getBoundingClientRect();
+      zoomBy(2, { x: e.clientX - rect.left, y: e.clientY - rect.top });
+    });
+  }
+
+  function populateSelects(){
+    const c = document.getElementById('plotContainer');
+    c.innerHTML = '';
+    App.Plotting.CONTAINERS.forEach(x => {
+      const o = document.createElement('option'); o.value = x.code; o.textContent = x.code+' — '+x.label;
+      c.appendChild(o);
+    });
+    const p = document.getElementById('plotPersist');
+    p.innerHTML = '';
+    App.Plotting.PERSISTENCY.forEach(x => {
+      const o = document.createElement('option'); o.value = x.code; o.textContent = x.code+' — '+x.label;
+      p.appendChild(o);
+    });
+    const a = document.getElementById('plotAgent');
+    a.innerHTML = '';
+    const agents = App.Enumerations.agentType || [];
+    const empty = document.createElement('option'); empty.value=''; empty.textContent='— (unspecified)';
+    a.appendChild(empty);
+    agents.forEach(x => {
+      const o = document.createElement('option'); o.value = x.code;
+      o.textContent = x.code+' — '+x.label + (x.unverified?' [UNVERIFIED]':'');
+      a.appendChild(o);
+    });
+  }
+
+  function renderEndpoints(){
+    const root = document.getElementById('plotEndpoints');
+    root.innerHTML = '';
+    ui.endpoints.forEach((e,i)=>{
+      const row = document.createElement('div');
+      row.className = 'endpoint-row';
+      row.innerHTML =
+        '<span class="pill">end '+(i+2)+'</span>'+
+        '<input type="text" placeholder="FOXTROT grid (label)" value="'+escAttr(e.grid||'')+'" data-k="grid" data-i="'+i+'">';
+      const rm = document.createElement('button');
+      rm.className = 'ghost'; rm.textContent='✕';
+      rm.addEventListener('click', ()=>{ ui.endpoints.splice(i,1); renderEndpoints(); refreshLineFields(); });
+      row.appendChild(rm);
+      root.appendChild(row);
+    });
+    root.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('input', e=>{
+        const i = parseInt(e.target.getAttribute('data-i'),10);
+        const k = e.target.getAttribute('data-k');
+        ui.endpoints[i][k] = e.target.value;
+      });
+    });
+    refreshLineFields();
+  }
+  function refreshLineFields(){
+    document.getElementById('plotLineFields').style.display =
+      (ui.endpoints.length >= 1) ? '' : 'none';
+  }
+
+  function renderCdmView(){
+    const el = document.getElementById('plotCdmView');
+    const cdm = App.Store.get('parsedCDM');
+    if (!cdm){
+      el.innerHTML = '<p class="notes">No CDM saved. Use Module 2 (CDM Parse) → Quick CDM.</p>';
+      return;
+    }
+    const fmt = v => v==null ? '—' : (typeof v==='number'? v.toFixed(1) : v);
+    el.innerHTML = '<div class="kv">'+
+      '<div class="k">direction (°)</div><div class="v">'+fmt(cdm.downwindDirectionDeg)+'</div>'+
+      '<div class="k">speed (km/h)</div><div class="v">'+fmt(cdm.downwindSpeedKph)+'</div>'+
+      '<div class="k">stability</div><div class="v">'+fmt(cdm.stabilityCode)+'</div>'+
+      '</div>';
+  }
+
+  function gatherInputs(){
+    let cdm = App.Store.get('parsedCDM');
+    let cdmFallbackNote = null;
+    const source = document.getElementById('plotSource').value;
+    // Fallback: if no CDM is saved and we're reading from Module 1's
+    // NBC3, derive the three plotting-critical values from the NBC3's
+    // YANKEE/ZULU. Per doctrine the CDM is authoritative; the NBC3's
+    // values are the observer's local readings. Surface that.
+    if (!cdm && source === 'mod1'){
+      const derived = App.CDM.fromNBC3State(App.Module1._state);
+      if (derived){
+        cdm = derived;
+        cdmFallbackNote = 'CDM derived from NBC3 YANKEE/ZULU (no CDM saved in Module 2).';
+      }
+    }
+    let primaryGrid = document.getElementById('plotGrid').value || '';
+    let container   = document.getElementById('plotContainer').value;
+    let burst       = document.getElementById('plotBurst').value;
+    let persistency = document.getElementById('plotPersist').value;
+    let agent       = document.getElementById('plotAgent').value;
+    let gentext     = document.getElementById('plotGentext').value;
+
+    if (source === 'mod1'){
+      // Pull from Module 1's current form (NBC3 CHEM only).
+      const st = App.Module1._state;
+      if (st.reportType !== 'NBC3_CHEM'){
+        return { _error:'Module 1 is not on NBC3 CHEM — switch report type or use Quick entry.' };
+      }
+      const sets = st.sets || {};
+      if (sets.FOXTROT && sets.FOXTROT[0]) primaryGrid = sets.FOXTROT[0].fields[0] || primaryGrid;
+      if (sets.GOLF    && sets.GOLF[0])    container   = (sets.GOLF[0].fields[3]||container).toUpperCase();
+      if (sets.INDIA   && sets.INDIA[0])   { persistency = (sets.INDIA[0].fields[2]||persistency).toUpperCase();
+                                             agent       = (sets.INDIA[0].fields[1]||agent).toUpperCase(); }
+      if (sets.GENTEXT && sets.GENTEXT[0]) gentext     = sets.GENTEXT[0].fields[1] || gentext;
+    }
+
+    // Endpoints for line attack.
+    // Three paths, in priority order:
+    //   (1) source=mod1 and Module 1 FOXTROT has ≥2 pairs whose grids
+    //       parse as same-square MGRS → auto-derive km positions.
+    //   (2) source=mod1 and FOXTROT has ≥2 pairs but grids don't
+    //       parse (different square / non-MGRS) → require manual
+    //       length+bearing override from the UI.
+    //   (3) source=quick and user has manually added endpoints via
+    //       the "+ Add end point" button → use the manual fields.
+    const endpoints = [];
+    let isLine = false;
+    let lineAutoNote = null;
+
+    if (source === 'mod1'){
+      const sets = App.Module1._state.sets || {};
+      const fox = sets.FOXTROT || [];
+      const grids = fox.map(p => p && p.fields && p.fields[0])
+                       .filter(g => g && g !== '-' && g !== '');
+      if (grids.length >= 2){
+        const rel = App.MGRS.parseGridsRelative(grids);
+        if (rel){
+          isLine = true;
+          rel.forEach(r => endpoints.push({ x:r.km.x, y:r.km.y, label:r.raw }));
+          const dx = rel[1].km.x - rel[0].km.x, dy = rel[1].km.y - rel[0].km.y;
+          const lenKm  = Math.hypot(dx, dy);
+          const bearDeg = ((Math.atan2(dx, dy) * 180/Math.PI) + 360) % 360;
+          lineAutoNote = 'Auto-detected line attack from '+grids.length+
+            ' FOXTROT grids (MGRS same-square decode): '+
+            'length '+lenKm.toFixed(2)+' km, bearing '+bearDeg.toFixed(0)+'°.';
+        } else {
+          return { _error:'Module 1 has '+grids.length+' FOXTROT grids but they '+
+            'cannot be auto-positioned (different UTM 100 km square or non-MGRS format). '+
+            'Use Quick entry below to set attack-line length and bearing manually.' };
+        }
+      }
+    }
+    if (!isLine && ui.endpoints.length >= 1){
+      const lenKm   = parseFloat(document.getElementById('plotLineLen').value);
+      const bearing = parseFloat(document.getElementById('plotLineBearing').value);
+      if (!isFinite(lenKm) || !isFinite(bearing)){
+        return { _error:'Line attack: provide attack-line length (km) and bearing (°).' };
+      }
+      isLine = true;
+      endpoints.push({ x:0, y:0, label: primaryGrid || 'end 1' });
+      const v = App.Plotting.azimuthToVec(bearing);
+      endpoints.push({ x: v.x*lenKm, y: v.y*lenKm, label: ui.endpoints[0].grid || 'end 2' });
+    }
+
+    const tempC = (function(){
+      // Temperature for Type B mask-removal can come from ZULU field 2
+      // (e.g. "10C", "18C") when Module 1 source is used.
+      if (source === 'mod1' && App.Module1._state.sets.ZULU){
+        const v = App.Module1._state.sets.ZULU[0].fields[1] || '';
+        const m = String(v).toUpperCase().match(/^(-?\d+)C$/);
+        if (m) return parseInt(m[1],10);
+      }
+      return null;
+    })();
+
+    return {
+      container, burst, persistency, agent, gentextStatement: gentext,
+      primaryLabel: primaryGrid,
+      isNbc4: document.getElementById('plotNbc4').checked,
+      isLineAttack: isLine,
+      endpoints,
+      windSpeedKph:        cdm ? cdm.downwindSpeedKph : null,
+      stabilityCode:       cdm ? cdm.stabilityCode    : null,
+      downwindDirectionDeg:cdm ? cdm.downwindDirectionDeg : null,
+      tempC,
+      _cdmUsed: cdm,
+      _cdmFallbackNote: cdmFallbackNote,
+      _lineAutoNote: lineAutoNote
+    };
+  }
+
+  function compute(){
+    const inp = gatherInputs();
+    const out = document.getElementById('plotOutput');
+    if (inp._error){ out.innerHTML = '<div class="card validation"><div class="err">'+escHTML(inp._error)+'</div></div>'; return; }
+    const cdm = inp._cdmUsed;
+    if (!cdm){
+      out.innerHTML = '<div class="card validation"><div class="err">No CDM available. '+
+        'Use Module 2 → Quick CDM to enter direction / speed / stability, '+
+        'or populate YANKEE and ZULU in Module 1 and use "Use current Module 1 form".</div></div>';
+      return;
+    }
+
+    const res = App.Plotting.compute(inp);
+    res._cdmFallbackNote = inp._cdmFallbackNote;
+    res._cdmSource = cdm.source || 'paste';
+    res._lineAutoNote = inp._lineAutoNote;
+    ui.lastResult = res;
+
+    out.innerHTML = '';
+    // Line-attack auto-detection note (MGRS same-square decode).
+    if (res._lineAutoNote){
+      const div = document.createElement('div');
+      div.className = 'match-banner';
+      div.innerHTML = '<strong>Line attack auto-detected.</strong> '+escHTML(res._lineAutoNote);
+      out.appendChild(div);
+    }
+    // CDM-fallback banner — surface that the plot is using NBC3
+    // YANKEE/ZULU instead of an actual CDM (doctrinal caveat).
+    if (res._cdmFallbackNote){
+      const div = document.createElement('div');
+      div.className = 'compute-panel';
+      div.style.borderColor = 'var(--warn)';
+      div.innerHTML = '<h4 style="color:var(--warn)">CDM source: NBC3 fallback '+
+        '<span class="tag unverified">UNVERIFIED</span></h4>'+
+        '<p style="margin:4px 0">'+escHTML(res._cdmFallbackNote)+'</p>'+
+        '<p class="notes" style="margin:4px 0">Per FM 3-11.3 doctrine the CDM is the '+
+        'authoritative wind/stability source for hazard plotting; YANKEE/ZULU in the '+
+        'NBC3 are the observer\'s local readings. Save an actual CDM in Module 2 to '+
+        'override.</p>';
+      out.appendChild(div);
+    }
+    // Conflict / match banner
+    res.conflicts.forEach(c => {
+      const div = document.createElement('div');
+      if (c.severity === 'conflict'){
+        div.className = 'conflict-banner';
+        div.innerHTML = '<strong>GENTEXT conflict.</strong> Stated: '+escHTML(c.stated)+
+          ' &nbsp;|&nbsp; Computed: '+escHTML(c.computed)+
+          '. Per fail-loud doctrine, the tool surfaces both — resolve by checking the inputs that drove the computation below.';
+      } else if (c.severity === 'match'){
+        div.className = 'match-banner';
+        div.innerHTML = 'GENTEXT cross-check: <strong>match</strong> ('+escHTML(c.stated)+').';
+      } else {
+        div.className = 'notes';
+        div.textContent = c.note || '';
+      }
+      out.appendChild(div);
+    });
+
+    // Errors
+    if (res.errors.length){
+      const div = document.createElement('div');
+      div.className = 'card validation';
+      div.innerHTML = '<div class="err"><strong>'+res.errors.length+' error(s):</strong><ul>'+
+        res.errors.map(e=>'<li>'+escHTML(e)+'</li>').join('')+'</ul></div>';
+      out.appendChild(div);
+    }
+
+    // Plot canvas
+    const plotCard = document.createElement('div'); plotCard.className = 'card';
+    plotCard.innerHTML = '<h3>Hazard plot — schematic, north-up</h3>';
+    const wrap = document.createElement('div'); wrap.className = 'plot-wrap';
+    const canvas = document.createElement('canvas');
+    canvas.className = 'plot-canvas';
+    canvas.style.width = '100%';
+    canvas.width = 720; canvas.height = 720;
+    wrap.appendChild(canvas);
+    plotCard.appendChild(wrap);
+    // Zoom controls — visible on every plot. Wheel / pinch / drag /
+    // double-tap also work directly on the canvas.
+    const zoomBar = document.createElement('div'); zoomBar.className = 'zoom-bar';
+    zoomBar.innerHTML =
+      '<span class="zoom-readout" id="zoomReadout">1.00×</span>'+
+      '<button id="zoomOutBtn" aria-label="Zoom out">−</button>'+
+      '<button id="zoomFitBtn" class="fit" aria-label="Fit">Fit</button>'+
+      '<button id="zoomInBtn"  aria-label="Zoom in">+</button>';
+    plotCard.appendChild(zoomBar);
+    out.appendChild(plotCard);
+
+    // Reset viewport for the new plot, store refs, then render.
+    ui.lastCanvas = canvas;
+    ui.viewport = { zoom: 1, centerKm: { x:0, y:0 } };
+    requestAnimationFrame(()=>{
+      const w = canvas.clientWidth || 720;
+      canvas.style.height = w + 'px';
+      App.Plotting.render(canvas, res, ui.viewport);
+      const ro = document.getElementById('zoomReadout');
+      if (ro) ro.textContent = '1.00×';
+    });
+    attachZoomPan(canvas);
+    document.getElementById('zoomInBtn').addEventListener('click', ()=>zoomBy(1.4));
+    document.getElementById('zoomOutBtn').addEventListener('click', ()=>zoomBy(1/1.4));
+    document.getElementById('zoomFitBtn').addEventListener('click', fitView);
+
+    // Computation panel [R-M3.7.6]
+    const cp = document.createElement('div'); cp.className = 'compute-panel';
+    cp.innerHTML = '<h4>How this was computed</h4>'+
+      '<div class="kv">'+
+      '<div class="k">type</div><div class="v">'+res.determination.type+'</div>'+
+      '<div class="k">case</div><div class="v">'+(res.determination.caseNum||'—')+'</div>'+
+      '<div class="k">attack r</div><div class="v">'+(res.dimensions.attackRadiusKm||'—')+' km</div>'+
+      '<div class="k">hazard</div><div class="v">'+(res.dimensions.hazardRangeKm!=null?(res.dimensions.hazardRangeKm+' km'):'—')+'</div>'+
+      (res.dimensions.upwindKm!=null?'<div class="k">upwind 2R</div><div class="v">'+res.dimensions.upwindKm+' km</div>':'')+
+      (res.dimensions.halfAngleDeg!=null?'<div class="k">half-angle</div><div class="v">'+res.dimensions.halfAngleDeg+'°</div>':'')+
+      (res.dimensions.downwindDirDeg!=null?'<div class="k">downwind °</div><div class="v">'+Math.round(res.dimensions.downwindDirDeg)+'°</div>':'')+
+      '<div class="k">container</div><div class="v">'+escHTML(res.computation.inputs.container||'—')+'</div>'+
+      '<div class="k">burst</div><div class="v">'+escHTML(res.computation.inputs.burst||'—')+'</div>'+
+      '<div class="k">persistency</div><div class="v">'+escHTML(res.computation.inputs.persistency||'—')+'</div>'+
+      '<div class="k">wind kph</div><div class="v">'+(res.computation.inputs.windSpeedKph!=null?res.computation.inputs.windSpeedKph.toFixed(1):'—')+'</div>'+
+      '<div class="k">stability</div><div class="v">'+escHTML(res.computation.inputs.stabilityCode||'—')+'</div>'+
+      '</div>'+
+      '<div class="cite">'+escHTML(res.determination.citation)+'</div>'+
+      (res.computation.dhd ? '<div class="cite">DHD source: '+escHTML(res.computation.dhd.source)+(res.computation.dhd.dhdGroup?(' (group '+res.computation.dhd.dhdGroup+', '+res.computation.dhd.stabilityBand+')'):'')+' → '+res.computation.dhd.dhdKm+' km</div>' : '');
+    if (res.warnings.length){
+      cp.innerHTML += '<div class="validation warn" style="margin-top:6px"><strong>Warnings:</strong><ul>'+
+        res.warnings.map(w=>'<li>'+escHTML(w)+'</li>').join('')+'</ul></div>';
+    }
+    out.appendChild(cp);
+
+    // Type B mask-removal panel [M3.5 Table E-4]
+    if (res.maskRemoval){
+      const mr = document.createElement('div'); mr.className = 'compute-panel';
+      mr.innerHTML = '<h4>Mask-removal time (Table E-4)</h4>'+
+        '<div class="kv">'+
+        '<div class="k">temp range</div><div class="v">'+res.maskRemoval.temp+'</div>'+
+        '<div class="k">attack area</div><div class="v">'+res.maskRemoval.attack+'</div>'+
+        '<div class="k">hazard area</div><div class="v">'+res.maskRemoval.hazard+'</div>'+
+        '</div>';
+      out.appendChild(mr);
+    } else if (res.determination.type === 'B'){
+      const mr = document.createElement('div'); mr.className = 'compute-panel';
+      mr.innerHTML = '<h4>Mask-removal time (Table E-4)</h4>'+
+        '<p class="notes">Provide ZULU temperature (e.g. <code>18C</code>) in Module 1 and select "Use current Module 1 form" to populate this. <span class="tag unverified">UNVERIFIED</span> if ambiguous.</p>';
+      out.appendChild(mr);
+    }
+
+    // Cloud arrival times (optional annotation)
+    if (res.dimensions.hazardRangeKm && res.computation.inputs.windSpeedKph){
+      const at = App.Plotting.arrivalTimes(res.dimensions.hazardRangeKm, res.computation.inputs.windSpeedKph);
+      if (at){
+        const ap = document.createElement('div'); ap.className = 'compute-panel';
+        ap.innerHTML = '<h4>Cloud arrival times (optional)</h4>'+
+          '<div class="kv">'+
+          '<div class="k">earliest (lead × 1.5)</div><div class="v">'+at.earliestMin.toFixed(1)+' min @ '+res.dimensions.hazardRangeKm+' km</div>'+
+          '<div class="k">latest (trail × 0.5)</div><div class="v">'+at.latestMin.toFixed(1)+' min</div>'+
+          '</div>';
+        out.appendChild(ap);
+      }
+    }
+
+    document.getElementById('plotExportBtn').disabled = !res.geometry.shapes.length;
+    toast('Plot computed');
+  }
+
+  function exportPng(){
+    if (!ui.lastCanvas){ toast('Nothing to export'); return; }
+    // Re-render at higher resolution for export
+    const tmp = document.createElement('canvas');
+    tmp.width = 1080; tmp.height = 1080;
+    tmp.style.width = '1080px'; tmp.style.height = '1080px';
+    // Render at high-res; banner is burned in by render()
+    App.Plotting.render(tmp, ui.lastResult, { width:1080, height:1080 });
+    tmp.toBlob(blob => {
+      const a = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      a.href = url;
+      a.download = ('CBRN-plot-Type'+ui.lastResult.determination.type+
+        (ui.lastResult.determination.caseNum?('-Case'+ui.lastResult.determination.caseNum):'')+'.png');
+      document.body.appendChild(a); a.click();
+      setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 250);
+      toast('PNG exported');
+    }, 'image/png');
+  }
+
+  function escHTML(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function escAttr(s){ return escHTML(s); }
+
+  function mount(){
+    populateSelects();
+    renderEndpoints();
+    renderCdmView();
+    App.Store.subscribe((k)=>{ if (k==='parsedCDM') renderCdmView(); });
+
+    document.getElementById('plotAddEndpoint').addEventListener('click', ()=>{
+      ui.endpoints.push({ grid:'' }); renderEndpoints();
+    });
+    document.getElementById('plotComputeBtn').addEventListener('click', compute);
+    document.getElementById('plotExportBtn').addEventListener('click', exportPng);
+    document.getElementById('plotClearBtn').addEventListener('click', ()=>{
+      document.getElementById('plotOutput').innerHTML = '';
+      document.getElementById('plotExportBtn').disabled = true;
+      ui.lastResult = null; ui.lastCanvas = null;
+    });
+    document.getElementById('plotGotoCdm').addEventListener('click', ()=>App.Shell.navigate('mod2'));
+    document.getElementById('plotSource').addEventListener('change', e=>{
+      const isQuick = e.target.value === 'quick';
+      document.getElementById('plotQuickFields').style.display = isQuick ? '' : 'none';
+      const st = document.getElementById('plotMod1Status');
+      if (!isQuick){
+        const m1 = App.Module1._state;
+        st.style.display = '';
+        st.innerHTML = 'Reading from Module 1 (current report type: <strong>'+m1.reportType+'</strong>). '+
+          'Switch Module 1 to NBC3_CHEM before computing.';
+      } else {
+        st.style.display = 'none';
+      }
+    });
+  }
+
+  return { mount, _ui: ui };
+})();
+
+App.Shell.registerModule({
+  id: 'mod3',
+  label: 'Module 3 — Chemical Hazard Plotting',
+  desc: 'Schematic plot per Table E-1, all 9 cases.',
+  mount: App.Module3.mount
+});
+
+/* ============================================================
    TESTS  [§7.1–§7.5 of requirements]
    - Round-trip fixtures from Figures E-1, E-2, E-3 and user sample
    - Field-type validators
@@ -1832,6 +3930,17 @@ App.Tests = (function(){
   add('tokenizer: blank input → no sets', ()=>{
     deepEq(App.Tokenizer.tokenize(''), []);
     deepEq(App.Tokenizer.tokenize('   \n\n  '), []);
+  });
+  add('tokenizer: fields are trimmed (no embedded newlines from wrapped sets)', ()=>{
+    // Wrapped FOXTROT (multi-line in source) must still produce
+    // four clean fields, not three plus one with a leading "\n".
+    const r = App.Tokenizer.tokenize('FOXTROT/32UNG420620/EE/\n32UNG435620/EE//');
+    eq(r.length, 1);
+    deepEq(r[0].fields, ['32UNG420620','EE','32UNG435620','EE']);
+    // And the decoder accepts the second location (class-X validator
+    // previously failed on the embedded newline).
+    const d = App.Decoder.decodeSet(r[0]);
+    eq(d.errors.length, 0, 'no errors; got: '+JSON.stringify(d.errors));
   });
 
   /* ---- §7.2 Field-validation tests ---- */
@@ -1984,6 +4093,490 @@ App.Tests = (function(){
     eq(!!App.SetDefs.PAPAA.unverified, true);
   });
 
+  /* ============================================================
+     MODULE 2 — CDM extract tests
+     ============================================================ */
+  add('CDM: parseDirection degrees', ()=>{
+    const d = App.CDM.parseDirection('270DGT');
+    eq(d.deg, 270); eq(d.unit, 'degrees');
+  });
+  add('CDM: parseDirection mils → degrees', ()=>{
+    const d = App.CDM.parseDirection('1600MLG');  // 1600 mils = 90°
+    eq(d.deg, 90); eq(d.unit, 'mils');
+  });
+  add('CDM: parseSpeed kph', ()=>{
+    eq(App.CDM.parseSpeed('015KPH').kph, 15);
+    eq(App.CDM.parseSpeed('9').kph, 9);
+  });
+  add('CDM: fromQuick produces structured contract', ()=>{
+    const c = App.CDM.fromQuick('105', '9', '4');
+    eq(c.downwindDirectionDeg, 105);
+    eq(c.downwindSpeedKph, 9);
+    eq(c.stabilityCode, '4');
+    eq(c.warnings.length, 0);
+  });
+  add('CDM: extract from tokenized message picks up YANKEE + ZULU', ()=>{
+    const toks = App.Tokenizer.tokenize('YANKEE/105DGT/009KPH//ZULU/4//');
+    const c = App.CDM.extract(toks);
+    eq(c.downwindDirectionDeg, 105);
+    eq(c.downwindSpeedKph, 9);
+    eq(c.stabilityCode, '4');
+    assert(c.unverified, 'must remain UNVERIFIED until M2-OI-1 resolved');
+  });
+  add('CDM: fromNBC3State derives values from YANKEE/ZULU', ()=>{
+    const st = {
+      reportType:'NBC3_CHEM',
+      sets:{
+        YANKEE:[{fields:['147DGT','009KPH']}],
+        ZULU:  [{fields:['2','15C','6','-','2']}]
+      }
+    };
+    const c = App.CDM.fromNBC3State(st);
+    eq(c.downwindDirectionDeg, 147);
+    eq(c.downwindSpeedKph, 9);
+    eq(c.stabilityCode, '2');
+    eq(c.source, 'nbc3-fallback');
+    assert(c.warnings.some(w=>/derived|precedence/i.test(w)),
+      'must surface doctrinal caveat in warnings');
+  });
+  add('CDM: fromNBC3State returns null when YANKEE/ZULU are absent', ()=>{
+    const st = { reportType:'NBC3_CHEM', sets:{} };
+    eq(App.CDM.fromNBC3State(st), null);
+  });
+  add('CDM: fromNBC3State rejects non-NBC3 report types', ()=>{
+    const st = { reportType:'NBC1_CHEM',
+      sets:{ YANKEE:[{fields:['147DGT','009KPH']}], ZULU:[{fields:['2']}] } };
+    eq(App.CDM.fromNBC3State(st), null);
+  });
+
+  /* ============================================================
+     MGRS — same-square parser tests (Fig E-11 fixture)
+     ============================================================ */
+  add('MGRS: parseSameSquare 6-digit 32UNG420620', ()=>{
+    const p = App.MGRS.parseSameSquare('32UNG420620');
+    eq(p.zone, '32'); eq(p.band, 'U'); eq(p.square, 'NG');
+    eq(p.eastM, 42000); eq(p.northM, 62000);
+  });
+  add('MGRS: parseSameSquare 4-digit (1 km precision)', ()=>{
+    const p = App.MGRS.parseSameSquare('32UNG4262');
+    eq(p.eastM, 42000); eq(p.northM, 62000);
+  });
+  add('MGRS: parseSameSquare rejects junk and odd-digit grids', ()=>{
+    eq(App.MGRS.parseSameSquare('NOTAGRID'), null);
+    eq(App.MGRS.parseSameSquare('32UNG12345'), null);  // odd digits
+    eq(App.MGRS.parseSameSquare(''), null);
+    eq(App.MGRS.parseSameSquare(null), null);
+  });
+  add('MGRS: parseGridsRelative — Fig E-11 endpoints are 1.5 km east-west', ()=>{
+    const r = App.MGRS.parseGridsRelative(['32UNG420620','32UNG435620']);
+    assert(r != null);
+    eq(r[0].km.x, 0); eq(r[0].km.y, 0);
+    eq(r[1].km.x, 1.5); eq(r[1].km.y, 0);
+  });
+  add('MGRS: parseGridsRelative — different squares return null', ()=>{
+    eq(App.MGRS.parseGridsRelative(['32UNG420620','32UNH420620']), null);
+  });
+
+  /* ============================================================
+     Module 3 — end-to-end Fig E-11: compute via decoded grids
+     should produce Type B Case 5 (not Case 1)
+     ============================================================ */
+  add('annot: B5 endpoint grid labels appear as positioned region-labels', ()=>{
+    // Regression for the collision bug — both endpoints' MGRS labels
+    // must be in the annotations layer (not inline on the point dots,
+    // which always anchor right-of-dot and would overlap for short lines).
+    const rel = App.MGRS.parseGridsRelative(['32UNG420620','32UNG435620']);
+    const r = App.Plotting.compute({
+      container:'BML', persistency:'P', windSpeedKph:9,
+      isLineAttack:true,
+      endpoints: rel.map(p=>({x:p.km.x, y:p.km.y, label:p.raw}))
+    });
+    const labels = (r.geometry.annotations||[])
+      .filter(a => a.kind==='region-label').map(a => a.text);
+    assert(labels.includes('32UNG420620'));
+    assert(labels.includes('32UNG435620'));
+    // Hazard Area should appear twice (top + bottom of capsule).
+    eq(labels.filter(t => t==='Hazard Area').length, 2);
+  });
+  add('annot: B5 dim arrows are along attack-line axis ("X km DHD" style)', ()=>{
+    // For Fig E-11 the hazard radius arrows should extend ALONG the
+    // attack-line direction, not perpendicular (which was the old style).
+    const rel = App.MGRS.parseGridsRelative(['32UNG420620','32UNG435620']);
+    const r = App.Plotting.compute({
+      container:'BML', persistency:'P', windSpeedKph:9,
+      isLineAttack:true,
+      endpoints: rel.map(p=>({x:p.km.x, y:p.km.y, label:p.raw}))
+    });
+    const dims = (r.geometry.annotations||[])
+      .filter(a => a.kind==='dim-arrow');
+    // Two "10 km" hazard arrows along the line, one "1 km" perp.
+    const tenKm = dims.filter(d => d.label === '10 km');
+    eq(tenKm.length, 2);
+    // The two 10-km arrows extend in opposite directions along the line.
+    const u1 = { x:tenKm[0].to.x - tenKm[0].from.x, y:tenKm[0].to.y - tenKm[0].from.y };
+    const u2 = { x:tenKm[1].to.x - tenKm[1].from.x, y:tenKm[1].to.y - tenKm[1].from.y };
+    const dot = u1.x*u2.x + u1.y*u2.y;
+    assert(dot < 0, '10-km arrows should point in opposite directions; dot='+dot);
+  });
+  add('module3 e2e: Fig E-11 two FOXTROT grids → B5 line capsule', ()=>{
+    // Caller side does what App.Module3.gatherInputs now does for
+    // source='mod1': decode the FOXTROT grids and feed compute.
+    const rel = App.MGRS.parseGridsRelative(['32UNG420620','32UNG435620']);
+    const r = App.Plotting.compute({
+      container:'BML', persistency:'P', windSpeedKph:9,
+      downwindDirectionDeg:147,
+      isLineAttack:true,
+      endpoints: rel.map(p => ({ x:p.km.x, y:p.km.y, label:p.raw }))
+    });
+    eq(r.determination.type, 'B');
+    eq(r.determination.caseNum, 5);
+    // Expect attack + hazard capsules in the geometry (not concentric circles).
+    const caps = r.geometry.shapes.filter(s => s.kind === 'capsule');
+    eq(caps.length, 2);
+  });
+
+  /* ============================================================
+     MODULE 3 — Determination engine tests [M3.3 / Table E-1]
+     ============================================================ */
+  function det(inp){ return App.Plotting.determine(inp); }
+  add('determ: NP nerve, 1km container, ≤10 kph → Type A Case 1', ()=>{
+    const r = det({ container:'BML', persistency:'NP', windSpeedKph:9 });
+    eq(r.type,'A'); eq(r.caseNum,1); eq(r.attackRadiusKm,1); eq(r.hazardRadiusKm,10);
+  });
+  add('determ: NP, >10 kph → Type A Case 2 (DHD lookup required)', ()=>{
+    const r = det({ container:'BML', persistency:'NP', windSpeedKph:15 });
+    eq(r.type,'A'); eq(r.caseNum,2); eq(r.dhdSource,'lookup-required');
+  });
+  add('determ: persistent, 1km container, ≤10 kph → Type B Case 1', ()=>{
+    const r = det({ container:'BML', persistency:'P', windSpeedKph:9 });
+    eq(r.type,'B'); eq(r.caseNum,1); eq(r.attackRadiusKm,1); eq(r.hazardRadiusKm,10);
+  });
+  add('determ: persistent, 1km container, >10 kph → Type B Case 2 (D=10 fixed)', ()=>{
+    const r = det({ container:'BML', persistency:'P', windSpeedKph:15 });
+    eq(r.type,'B'); eq(r.caseNum,2); eq(r.dhdSource,'fixed-10');
+  });
+  add('determ: persistent BOM (2km group), ≤10 kph → Type B Case 3', ()=>{
+    const r = det({ container:'BOM', persistency:'P', windSpeedKph:8 });
+    eq(r.type,'B'); eq(r.caseNum,3); eq(r.attackRadiusKm,2);
+  });
+  add('determ: persistent BOM, >10 kph → Type B Case 4', ()=>{
+    const r = det({ container:'BOM', persistency:'P', windSpeedKph:20 });
+    eq(r.type,'B'); eq(r.caseNum,4); eq(r.attackRadiusKm,2);
+  });
+  add('determ: air-burst RKT → Case 3/4 group', ()=>{
+    const r = det({ container:'RKT', burst:'air', persistency:'P', windSpeedKph:8 });
+    eq(r.attackRadiusKm, 2);
+  });
+  add('determ: surface-burst RKT → Case 1/2 group (R=1)', ()=>{
+    const r = det({ container:'RKT', burst:'surface', persistency:'P', windSpeedKph:8 });
+    eq(r.attackRadiusKm, 1);
+  });
+  add('determ: container UNK substitutes RKT [M3.3 §E.d.2]', ()=>{
+    const r = det({ container:'UNK', persistency:'P', windSpeedKph:8 });
+    assert(r.warnings.some(w=>w.indexOf('UNK')>=0));
+  });
+  add('determ: line attack ≤10 kph → Case 5', ()=>{
+    const r = det({ container:'BML', persistency:'P', windSpeedKph:9, isLineAttack:true });
+    eq(r.type,'B'); eq(r.caseNum,5);
+  });
+  add('determ: line attack >10 kph → Case 6', ()=>{
+    const r = det({ container:'BML', persistency:'P', windSpeedKph:12, isLineAttack:true });
+    eq(r.type,'B'); eq(r.caseNum,6);
+  });
+  add('determ: NBC4 detection → Type C (10 km, no case)', ()=>{
+    const r = det({ isNbc4:true });
+    eq(r.type,'C'); eq(r.caseNum, null); eq(r.attackRadiusKm,10);
+  });
+  // 10 kph boundary: spec says ≤10 / >10. At exactly 10 → low band.
+  add('determ: wind = 10 kph boundary → low-band case', ()=>{
+    const r = det({ container:'BML', persistency:'NP', windSpeedKph:10 });
+    eq(r.caseNum, 1);
+  });
+  add('determ: wind = 10.1 kph → high-band case', ()=>{
+    const r = det({ container:'BML', persistency:'NP', windSpeedKph:10.1 });
+    eq(r.caseNum, 2);
+  });
+
+  /* ---- DHD lookup (Table E-3 simplified) ---- */
+  add('DHD: SHL Unstable → 10 km (Table E-3)', ()=>{
+    const r = App.Plotting.lookupDhd({}, { container:'SHL', burst:'surface', stabilityCode:'2' });
+    eq(r.dhdKm, 10); eq(r.source, 'table-e3'); eq(r.stabilityBand, 'Unstable');
+  });
+  add('DHD: BOM (air-burst group) Stable → 50 km', ()=>{
+    const r = App.Plotting.lookupDhd({}, { container:'BOM', stabilityCode:'6' });
+    eq(r.dhdKm, 50); eq(r.dhdGroup, 'ABRU');
+  });
+  add('DHD: message-supplied takes precedence', ()=>{
+    const r = App.Plotting.lookupDhd({}, { container:'BOM', stabilityCode:'4', providedDhdKm:25 });
+    eq(r.dhdKm, 25); eq(r.source, 'message-supplied');
+  });
+
+  /* ---- Table E-4 mask removal ---- */
+  add('Table E-4: <10°C window', ()=>{
+    const r = App.Plotting.maskRemovalTime(5);
+    eq(r.attack, '3–10 days'); eq(r.hazard, '2–6 days');
+  });
+  add('Table E-4: 11–20°C window', ()=>{
+    const r = App.Plotting.maskRemovalTime(15);
+    eq(r.attack, '2–4 days'); eq(r.hazard, '1–2 days');
+  });
+  add('Table E-4: >20°C window', ()=>{
+    const r = App.Plotting.maskRemovalTime(25);
+    eq(r.attack, '≤2 days'); eq(r.hazard, '≤1 day');
+  });
+
+  /* ============================================================
+     GEOMETRY tests — assert key constructions per case
+     Tolerances per M3.9: distances ±1% or ±100 m; angles ±1°.
+     ============================================================ */
+  function close(a, b, tol){ return Math.abs(a - b) <= tol; }
+  function closeDeg(a, b){
+    const d = ((a - b + 540) % 360) - 180;
+    return Math.abs(d) <= 1;
+  }
+  add('geom: A1 concentric circles 1 km + 10 km', ()=>{
+    const g = App.Plotting.concentric('x', 1, 10);
+    const atk = g.shapes.find(s=>s.role==='attack');
+    const haz = g.shapes.find(s=>s.role==='hazard');
+    eq(atk.r, 1); eq(haz.r, 10);
+  });
+  add('geom: A2 wedge — upwind 2R, tangent angle 30°', ()=>{
+    // axis = 180° (downwind south); R=1; D=10
+    const g = App.Plotting.singleWedge('x', 1, 180, 10);
+    const w = g.shapes.find(s=>s.kind==='wedge');
+    // Upwind point at (0, +2): downwind south means upwind is north (+y).
+    assert(close(w.U.x, 0, 0.001), 'U.x=0');
+    assert(close(w.U.y, 2, 0.001), 'U.y=2');
+    // Both tangent corners on the perpendicular y = -10 (south).
+    assert(close(w.A.y, -10, 0.001) && close(w.B.y, -10, 0.001),
+      'corners on y=-10; got A=('+w.A.x+','+w.A.y+') B=('+w.B.x+','+w.B.y+')');
+    // Symmetric about y axis
+    assert(close(w.A.x, -w.B.x, 0.001), 'symmetric A.x = -B.x');
+    // Half-angle 30°: corners are at (±t·sin30°, ...) from U which is (0,2);
+    //  t = (D+2R)/cos30° = 12/cos30°.
+    const tExpected = 12 / Math.cos(Math.PI/6);
+    const horiz = tExpected * Math.sin(Math.PI/6);
+    assert(close(Math.abs(w.A.x), horiz, 0.01), 'horizontal offset matches 30° tangent');
+  });
+  add('geom: B4 wedge — upwind 4 km (2R), D=10 km', ()=>{
+    const g = App.Plotting.singleWedge('x', 2, 180, 10);
+    const w = g.shapes.find(s=>s.kind==='wedge');
+    assert(close(w.U.y, 4, 0.001), 'upwind 2R=4 km');
+    assert(close(w.A.y, -10, 0.001), 'corners on y=-10');
+  });
+  add('geom: B5 line attack — capsule attack + capsule hazard', ()=>{
+    const g = App.Plotting.lineAttackCase5({x:0,y:0}, {x:3,y:0}, ['e1','e2']);
+    const caps = g.shapes.filter(s=>s.kind==='capsule');
+    eq(caps.length, 2);
+    eq(caps.find(c=>c.role==='attack').r, 1);
+    eq(caps.find(c=>c.role==='hazard').r, 10);
+  });
+  add('geom: B6 line attack — 2 wedges + combined polygon', ()=>{
+    const g = App.Plotting.lineAttackCase6({x:0,y:0}, {x:3,y:0}, 180, ['e1','e2']);
+    eq(g.shapes.filter(s=>s.kind==='wedge').length, 2);
+    eq(g.shapes.filter(s=>s.kind==='polygon').length, 1);
+  });
+  add('geom: Type C single 10 km circle (attack=hazard)', ()=>{
+    const r = App.Plotting.compute({ isNbc4:true });
+    const c = r.geometry.shapes.find(s=>s.kind==='circle');
+    eq(c.r, 10); eq(c.role, 'attack-hazard');
+  });
+
+  /* ============================================================
+     GENTEXT cross-check tests [M3.4]
+     ============================================================ */
+  add('GENTEXT cross-check: agreement is reported', ()=>{
+    const r = App.Plotting.compute({
+      container:'BML', persistency:'NP', windSpeedKph:9, downwindDirectionDeg:0,
+      gentextStatement:'TYPE A, CASE 1'
+    });
+    const c = r.conflicts[0]; eq(c.severity, 'match');
+  });
+  add('GENTEXT cross-check: conflict surfaced, not silently resolved', ()=>{
+    const r = App.Plotting.compute({
+      container:'BML', persistency:'NP', windSpeedKph:9,
+      gentextStatement:'TYPE B, CASE 2'   // disagrees with computed A1
+    });
+    const c = r.conflicts[0];
+    eq(c.severity, 'conflict');
+    assert(c.stated.indexOf('B') >= 0 && c.computed.indexOf('A') >= 0);
+  });
+  add('GENTEXT cross-check: malformed text is skipped, not auto-interpreted', ()=>{
+    const r = App.Plotting.compute({
+      container:'BML', persistency:'NP', windSpeedKph:9,
+      gentextStatement:'recalculation required'
+    });
+    eq(r.conflicts[0].severity, 'skip');
+  });
+
+  /* ============================================================
+     LABELING tests — assert dimensions show on the result for §M3.6
+     ============================================================ */
+  add('labeling: A2 result exposes attack/hazard/upwind/half-angle', ()=>{
+    const r = App.Plotting.compute({
+      container:'BML', persistency:'NP', windSpeedKph:15, downwindDirectionDeg:120,
+      stabilityCode:'4'
+    });
+    eq(r.dimensions.attackRadiusKm, 1);
+    eq(r.dimensions.upwindKm, 2);
+    eq(r.dimensions.halfAngleDeg, 30);
+    eq(r.dimensions.downwindDirDeg, 120);
+    assert(r.dimensions.hazardRangeKm > 0);
+  });
+  add('labeling: B mask-removal populates when temp present', ()=>{
+    const r = App.Plotting.compute({
+      container:'BML', persistency:'P', windSpeedKph:9, tempC:18
+    });
+    assert(r.maskRemoval && r.maskRemoval.attack.indexOf('day') > 0);
+  });
+
+  /* ============================================================
+     §M3.9 GOLDEN-EXAMPLE fixtures (one per case from Table)
+     ============================================================ */
+  function expectCase(label, inp, expectedType, expectedCase){
+    add('golden: '+label, ()=>{
+      const r = App.Plotting.compute(inp);
+      eq(r.determination.type, expectedType, 'type');
+      eq(r.determination.caseNum, expectedCase, 'case');
+    });
+  }
+  expectCase('Fig E-5 (A1)', { container:'BML', persistency:'NP', windSpeedKph:9 }, 'A', 1);
+  expectCase('Fig E-6 (A2)', { container:'BML', persistency:'NP', windSpeedKph:15,
+    downwindDirectionDeg:105, stabilityCode:'4' }, 'A', 2);
+  expectCase('Fig E-7 (B1)', { container:'BML', persistency:'P', windSpeedKph:9 }, 'B', 1);
+  expectCase('Fig E-8 (B2)', { container:'BML', persistency:'P', windSpeedKph:15,
+    downwindDirectionDeg:120 }, 'B', 2);
+  expectCase('Fig E-9 (B3)', { container:'MSL', burst:'air', persistency:'P', windSpeedKph:8 }, 'B', 3);
+  expectCase('Fig E-10 (B4)', { container:'BOM', persistency:'P', windSpeedKph:20,
+    downwindDirectionDeg:110 }, 'B', 4);
+  expectCase('Fig E-11 (B5)', { container:'BML', persistency:'P', windSpeedKph:9,
+    isLineAttack:true, endpoints:[{x:0,y:0},{x:3,y:0}] }, 'B', 5);
+  expectCase('Fig E-12 (B6)', { container:'BML', persistency:'P', windSpeedKph:12,
+    isLineAttack:true, endpoints:[{x:0,y:0},{x:3,y:0}], downwindDirectionDeg:147 }, 'B', 6);
+  expectCase('Fig E-13 (C)',  { isNbc4:true }, 'C', null);
+
+  /* ============================================================
+     §M3.6 banner + plotting UNVERIFIED tests
+     ============================================================ */
+  add('plot: TRAINING USE ONLY appears in DOM banner (shared)', ()=>{
+    const txt = document.getElementById('trainingBanner').textContent;
+    assert(/TRAINING USE ONLY/.test(txt));
+  });
+  add('plot: B2 stability is explicitly ignored (D=10 fixed)', ()=>{
+    const r = App.Plotting.compute({
+      container:'BML', persistency:'P', windSpeedKph:15, downwindDirectionDeg:120,
+      stabilityCode:'1'   // would be Unstable; for B2 must be ignored
+    });
+    eq(r.dimensions.hazardRangeKm, 10);
+  });
+  add('plot: A2 stability changes DHD via Table E-3', ()=>{
+    const stable = App.Plotting.compute({
+      container:'BML', persistency:'NP', windSpeedKph:15, downwindDirectionDeg:120,
+      stabilityCode:'6'   // Stable
+    });
+    const unstable = App.Plotting.compute({
+      container:'BML', persistency:'NP', windSpeedKph:15, downwindDirectionDeg:120,
+      stabilityCode:'2'   // Unstable
+    });
+    assert(stable.dimensions.hazardRangeKm > unstable.dimensions.hazardRangeKm);
+  });
+  add('plot: UNVERIFIED tag from Table E-2 stub appears in warnings', ()=>{
+    const r = App.Plotting.compute({
+      container:'BML', persistency:'NP', windSpeedKph:15, downwindDirectionDeg:120,
+      stabilityCode:'4'
+    });
+    assert(r.warnings.some(w=>/UNVERIFIED|E-2/.test(w)));
+  });
+
+  /* ============================================================
+     ANNOTATION tests — assert on-plot dimension labels are produced
+     per M3.6 ("all dimensions labeled"), matching Fig E-5 style.
+     ============================================================ */
+  function dimLabels(r){
+    return (r.geometry.annotations||[])
+      .filter(a => a.kind === 'dim-arrow' && a.label)
+      .map(a => a.label);
+  }
+  function hasRegion(r, text){
+    return (r.geometry.annotations||[]).some(a => a.kind==='region-label' && a.text===text);
+  }
+  add('annot: A1 has "1 km" and "10 km" dimension arrows + Attack/Hazard labels', ()=>{
+    const r = App.Plotting.compute({ container:'BML', persistency:'NP', windSpeedKph:9 });
+    const labels = dimLabels(r);
+    assert(labels.includes('1 km'), 'expected "1 km" arrow; got '+JSON.stringify(labels));
+    assert(labels.includes('10 km'), 'expected "10 km" arrow; got '+JSON.stringify(labels));
+    assert(hasRegion(r, 'Attack Area'));
+    assert(hasRegion(r, 'Hazard Area'));
+  });
+  add('annot: A2 wedge has R, D, 2R arrows and two 30° angle arcs', ()=>{
+    const r = App.Plotting.compute({
+      container:'BML', persistency:'NP', windSpeedKph:15,
+      downwindDirectionDeg:120, stabilityCode:'4'
+    });
+    const labels = dimLabels(r);
+    assert(labels.includes('1 km'), 'attack R arrow missing');
+    assert(labels.some(l => /\d+ km/.test(l) && parseInt(l,10) >= 10), 'D arrow missing');
+    assert(labels.includes('2 km'), 'upwind 2R arrow missing');
+    const arcs = (r.geometry.annotations||[]).filter(a=>a.kind==='angle-arc');
+    eq(arcs.length, 2);
+    assert(arcs.every(a=>a.label==='30°'));
+  });
+  add('annot: B4 wedge has 4 km upwind arrow (2R=4)', ()=>{
+    const r = App.Plotting.compute({
+      container:'BOM', persistency:'P', windSpeedKph:20, downwindDirectionDeg:110
+    });
+    assert(dimLabels(r).includes('4 km'));
+  });
+  add('annot: Type C has "10 km" arrow + combined region label', ()=>{
+    const r = App.Plotting.compute({ isNbc4:true });
+    assert(dimLabels(r).includes('10 km'));
+    assert(hasRegion(r, 'Attack + Hazard Area'));
+  });
+  add('annot: every result includes a plot frame', ()=>{
+    const r = App.Plotting.compute({ container:'BML', persistency:'NP', windSpeedKph:9 });
+    assert((r.geometry.annotations||[]).some(a => a.kind === 'frame'));
+  });
+
+  /* ============================================================
+     VIEWPORT / ZOOM tests — render with zoom & centerKm and verify
+     the canvas-exposed viewport math (used by wheel + pinch handlers).
+     ============================================================ */
+  add('viewport: zoom multiplier applies to render scale', ()=>{
+    const r = App.Plotting.compute({ container:'BML', persistency:'NP', windSpeedKph:9 });
+    const c = document.createElement('canvas');
+    c.clientWidth = 600; c.clientHeight = 600;
+    App.Plotting.render(c, r, { zoom:1 });
+    const s1 = c._cbrnView.scale;
+    App.Plotting.render(c, r, { zoom:3 });
+    const s2 = c._cbrnView.scale;
+    assert(Math.abs(s2/s1 - 3) < 0.001, 'scale ratio expected 3×, got '+(s2/s1));
+  });
+  add('viewport: centerKm shifts the visible km origin', ()=>{
+    const r = App.Plotting.compute({ container:'BML', persistency:'NP', windSpeedKph:9 });
+    const c = document.createElement('canvas');
+    c.clientWidth = 600; c.clientHeight = 600;
+    App.Plotting.render(c, r, { zoom:2, centerKm:{x:4, y:-2} });
+    const v = c._cbrnView;
+    eq(v.centerKm.x, 4); eq(v.centerKm.y, -2);
+    // px (cx,cy) should map back to centerKm exactly
+    const km = v.pxToKm(v.cx, v.cy);
+    assert(Math.abs(km.x - 4) < 0.001 && Math.abs(km.y + 2) < 0.001);
+  });
+  add('viewport: pxToKm inverse is consistent at off-center pixel', ()=>{
+    const r = App.Plotting.compute({ container:'BML', persistency:'NP', windSpeedKph:9 });
+    const c = document.createElement('canvas');
+    c.clientWidth = 600; c.clientHeight = 600;
+    App.Plotting.render(c, r, { zoom:1.5, centerKm:{x:1, y:1} });
+    const v = c._cbrnView;
+    // Pick an arbitrary km point, forward-map then inverse-map.
+    const kmIn = { x: 2.5, y: -0.7 };
+    const px = v.cx + (kmIn.x - v.centerKm.x) * v.scale;
+    const py = v.cy - (kmIn.y - v.centerKm.y) * v.scale;
+    const kmOut = v.pxToKm(px, py);
+    assert(Math.abs(kmOut.x - kmIn.x) < 0.001 && Math.abs(kmOut.y - kmIn.y) < 0.001,
+      'inverse mismatch: in='+JSON.stringify(kmIn)+' out='+JSON.stringify(kmOut));
+  });
+
   function run(){
     const root = document.getElementById('testResults');
     root.innerHTML = '<p>Running '+tests.length+' tests…</p>';
@@ -2046,8 +4639,10 @@ App.Tests = (function(){
   document.getElementById('logToggle').addEventListener('change', e=>App.Log.set(e.target.checked));
   document.getElementById('logClear').addEventListener('click', ()=>App.Log.clear());
 
-  // Mount Module 1.
+  // Mount modules.
   App.Module1.mount();
+  App.Module2.mount();
+  App.Module3.mount();
 
   App.Log.add('boot', 'Mobile CBRN App initialized', App.Tests._count()+' tests registered');
 })();

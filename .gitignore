@@ -3,6 +3,8 @@
 Thumbs.db
 Desktop.ini
 
+temp/
+
 # Editor / IDE
 .vscode/
 .idea/
