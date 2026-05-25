@@ -404,12 +404,36 @@ details[open] summary{margin-bottom:6px}
         <textarea id="cdmInput" placeholder="(CDM message, set lines ending in //)"></textarea>
         <div class="row" style="margin-top:10px">
           <button class="primary" id="cdmParseBtn">Parse &amp; extract</button>
+          <button class="secondary" id="cdmPhotoBtn">From photo</button>
           <button class="ghost" id="cdmClearPaste">Clear</button>
+        </div>
+        <input type="file" id="cdmPhotoInput" accept="image/*" capture="environment" style="display:none">
+        <details class="photo-help">
+          <summary>Scan a CDM from a photo (iPhone)</summary>
+          <ol>
+            <li><strong>Keyboard scanner</strong> — tap inside the box above; on iOS&nbsp;15+ a
+              text-scan icon appears on the keyboard. Tap it to live-scan straight into the field.</li>
+            <li><strong>From Photos app</strong> — open the photo, long-press the CDM text,
+              choose <em>Copy</em>, return here, tap the box, choose <em>Paste</em>.</li>
+            <li><strong>From photo (this button)</strong> — picks a photo or opens the camera
+              and shows the image below. Long-press the image, choose <em>Copy Text</em>, tap the
+              box, paste, then click Parse &amp; extract.</li>
+          </ol>
+          <p class="notes">Live Text is system-provided — accuracy matches what iOS recognizes
+            natively. Proof-read pasted text carefully: <code>/</code>, <code>//</code> and
+            <code>-</code> are common mis-reads.</p>
+        </details>
+        <div id="cdmPhotoBox" class="photo-box" style="display:none">
+          <div class="photo-bar">
+            <span class="pill">Long-press the image → Copy Text → paste above</span>
+            <button class="ghost" id="cdmPhotoClear">Remove</button>
+          </div>
+          <img id="cdmPhotoImg" alt="Imported CDM photo">
         </div>
         <p class="notes" style="margin-top:8px"><span class="tag unverified">UNVERIFIED</span>
           Real CDM line/set definitions await transcription from the manual. The parser
-          tokenizes generically and looks for YANKEE-style direction/speed and a
-          stability-looking field — confirm against the manual before relying on parsed
+          tokenizes generically and looks for YANKEEM/XRAYM/WHISKEYM (or NBC3-style YANKEE)
+          for direction/speed/stability — confirm against the manual before relying on parsed
           output. Use Quick CDM if in doubt.</p>
       </div>
       <div id="cdmPasteResult"></div>
@@ -2343,6 +2367,34 @@ App.Module2 = (function(){
     document.getElementById('cdmClearQuick').addEventListener('click', clearQuick);
     document.getElementById('cdmParseBtn').addEventListener('click', parsePaste);
     document.getElementById('cdmClearPaste').addEventListener('click', clearPaste);
+    // "From photo" — pulls a photo (camera or library) into the page so
+    // the user can long-press it and use iOS Live Text → Copy Text →
+    // paste. No OCR in JS; Live Text is system-provided.
+    const photoBtn   = document.getElementById('cdmPhotoBtn');
+    const photoInput = document.getElementById('cdmPhotoInput');
+    const photoBox   = document.getElementById('cdmPhotoBox');
+    const photoImg   = document.getElementById('cdmPhotoImg');
+    const photoClear = document.getElementById('cdmPhotoClear');
+    let photoURL = null;
+    function clearPhoto(){
+      if (photoURL){ URL.revokeObjectURL(photoURL); photoURL = null; }
+      photoImg.removeAttribute('src');
+      photoBox.style.display = 'none';
+    }
+    photoBtn.addEventListener('click', ()=>photoInput.click());
+    photoInput.addEventListener('change', e=>{
+      const f = e.target.files && e.target.files[0];
+      if (!f) return;
+      clearPhoto();
+      photoURL = URL.createObjectURL(f);
+      photoImg.src = photoURL;
+      photoBox.style.display = '';
+      photoBox.scrollIntoView({behavior:'smooth', block:'start'});
+      toast('Long-press the image → Copy Text → paste above');
+      e.target.value = '';
+    });
+    photoClear.addEventListener('click', clearPhoto);
+
     App.Store.subscribe((k)=>{ if (k==='parsedCDM') renderStoreView(); });
     renderStoreView();
   }
