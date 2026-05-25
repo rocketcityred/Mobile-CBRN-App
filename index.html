@@ -28,6 +28,11 @@ header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1p
 .titlebar h1{margin:0;font-size:17px;font-weight:700;flex:1;text-align:center}
 .titlebar button{background:var(--panel2);color:var(--ink);border:1px solid var(--rule);
   border-radius:8px;min-height:36px;min-width:36px;padding:0 10px;font-size:14px}
+.std-pill{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.04em;
+  background:var(--panel2);color:var(--ink-dim);border:1px solid var(--rule);
+  border-radius:999px;min-height:28px;padding:0 10px;cursor:pointer;flex:0 0 auto}
+.std-pill.on{background:var(--accent);color:#000;border-color:var(--accent)}
+.std-pill .lbl{margin-right:4px;color:inherit;opacity:.8}
 main{padding:12px;max-width:760px;margin:0 auto}
 .view{display:none}.view.active{display:block}
 h2{font-size:20px;margin:8px 0 12px}h3{font-size:16px;margin:14px 0 6px}
@@ -188,6 +193,9 @@ details[open] summary{margin-bottom:6px}
   <div class="titlebar">
     <button id="btnBack" style="visibility:hidden">‹ Back</button>
     <h1 id="appTitle">Mobile CBRN App</h1>
+    <button class="std-pill" id="btnStandard" type="button"
+      title="Toggle reporting/plotting standard"
+      aria-label="Toggle standard"><span class="lbl">STD</span><span id="btnStandardName">AFTTP</span></button>
     <button id="btnMenu">≡</button>
   </div>
 </header>
@@ -205,9 +213,9 @@ details[open] summary{margin-bottom:6px}
       <button class="item" data-go="log"><span class="t">Debug Log</span><span class="d">Toggleable tokenization/validation trace.</span></button>
     </div>
     <p class="notes">
-      Source authority: FM 3-11.3 / MCWP 3-37.2A / NTTP 3-11.25 / AFTTP(I) 3-2.56 (2 Feb 2006).
+      Source authority: <span id="homeStdCitation">FM 3-11.3 / MCWP 3-37.2A / NTTP 3-11.25 / AFTTP(I) 3-2.56 (2 Feb 2006)</span>.
       Public release; distribution unlimited. v1 covers the platform shell plus
-      Module 1 (Report Builder/Parser) for CHEM NBC1/2/3.
+      Module 1 (Report Builder/Parser) for CHEM <span id="homeStdReports">NBC1/2/3</span>.
     </p>
   </section>
 
@@ -243,10 +251,22 @@ details[open] summary{margin-bottom:6px}
     </div>
     <div class="card">
       <h3>Citations</h3>
-      <p>All field, type, enumeration, and per-report set membership definitions
+      <p id="helpCitations">All field, type, enumeration, and per-report set membership definitions
         come from FM 3-11.3 / MCWP 3-37.2A / NTTP 3-11.25 / AFTTP(I) 3-2.56,
         2 Feb 2006 (Tables III-1, III-2, III-3, III-4 and Appendix E sample
         reports — Figures E-1, E-2, E-3).</p>
+    </div>
+    <div class="card">
+      <h3>Active standard</h3>
+      <p>The <strong>STD</strong> pill in the title bar toggles between the default
+        <strong>AFTTP(I) 3-2.56 (2 Feb 2006)</strong> joint US standard and the
+        latest NATO <strong>ATP-45 Edition E, Version 1 (January 2014; STANAG 2103)</strong>.
+        With ATP-45(E) active the app re-labels reports as <strong>CBRN 1/2/3 CHEM</strong>,
+        accepts the modern CDM set names (<code>WHISKEYM/XRAYM/YANKEEM</code>), treats
+        previously-unverified delivery / container codes as canonical, and exposes a
+        <strong>Type D</strong> (industrial / TIM release) template in the plotter
+        (1 km release, 3 km hazard area). Report-set internals (ALFA/BRAVO/&hellip;) and
+        the Type A/B/C hazard-distance numbers are unchanged between the two standards.</p>
     </div>
   </section>
 
@@ -288,9 +308,9 @@ details[open] summary{margin-bottom:6px}
       <div class="card">
         <label for="reportType">Report type</label>
         <select id="reportType">
-          <option value="NBC1_CHEM">NBC1 CHEM — observer's report</option>
-          <option value="NBC2_CHEM">NBC2 CHEM — evaluated data</option>
-          <option value="NBC3_CHEM">NBC3 CHEM — predicted hazard warning</option>
+          <option value="NBC1_CHEM" data-stdshort="NBC1">NBC1 CHEM — observer's report</option>
+          <option value="NBC2_CHEM" data-stdshort="NBC2">NBC2 CHEM — evaluated data</option>
+          <option value="NBC3_CHEM" data-stdshort="NBC3">NBC3 CHEM — predicted hazard warning</option>
         </select>
         <div class="row" style="margin-top:10px">
           <button class="ghost" id="loadSampleBtn">Load sample</button>
@@ -498,6 +518,16 @@ details[open] summary{margin-bottom:6px}
             <label for="plotNbc4">This is a Type C scenario (detection at this grid)</label>
           </div>
         </div>
+        <div class="field" id="plotTypeDField" style="display:none">
+          <label for="plotTypeD">Type D — industrial / TIM release (ATP-45(E) only)</label>
+          <div class="checkbox-row">
+            <input type="checkbox" id="plotTypeD">
+            <label for="plotTypeD">Treat as Type D (release r = 1 km, hazard area = 3 km)</label>
+          </div>
+          <p class="notes">Per ATP-45(E) §0319: TIM / chemical-substance release uses a 1 km
+            release radius and a 3 km hazard area (concentric at wind ≤ 10 km/h, 30° wedge of
+            DHD = 3 km at wind &gt; 10 km/h). Overrides Type A/B/C selection.</p>
+        </div>
         <div class="field">
           <label>Line attack (B5/B6) — additional FOXTROT end points</label>
           <div id="plotEndpoints"></div>
@@ -582,6 +612,90 @@ function toast(msg, ms=1600){
   clearTimeout(toast._t);
   toast._t = setTimeout(()=>t.classList.remove('show'), ms);
 }
+
+/* ============================================================
+   STANDARD SELECTOR
+   AFTTP  — FM 3-11.3 / MCWP 3-37.2A / NTTP 3-11.25 / AFTTP(I) 3-2.56,
+            2 Feb 2006 (default; what the rest of the app is built on).
+   ATP45E — NATO ATP-45 Edition E, Version 1 (January 2014; STANAG 2103).
+            Differences honored by the toggle:
+              • Reports re-labeled NBC → CBRN (internal IDs unchanged).
+              • Citation strings (banner, Help, exports, JSON meta).
+              • CDM format is canonical (Annex C) — drop UNVERIFIED tag.
+              • Delivery / container codes that ATP-45(E) defines are no
+                longer surfaced as UNVERIFIED (RCT, PLT, RLD, TPT).
+              • Plotter exposes Type D (industrial / TIM release) per
+                ATP-45(E) §0319: 1 km release radius, 3 km hazard area.
+            Items the same in both standards (set names ALFA/BRAVO/…,
+            Type A/B/C distances, 30° wedge, 2R upwind, persistency
+            P/NP/T, agent codes for classical CW) are NOT branched.
+   ============================================================ */
+App.Standard = (function(){
+  const CONFIGS = {
+    AFTTP: {
+      key: 'AFTTP',
+      shortLabel: 'AFTTP',
+      citationShort: 'FM 3-11.3 / MCWP 3-37.2A / NTTP 3-11.25 / AFTTP(I) 3-2.56 (2 Feb 2006)',
+      citationLong:
+        'All field, type, enumeration, and per-report set membership definitions '+
+        'come from FM 3-11.3 / MCWP 3-37.2A / NTTP 3-11.25 / AFTTP(I) 3-2.56, '+
+        '2 Feb 2006 (Tables III-1, III-2, III-3, III-4 and Appendix E sample '+
+        'reports — Figures E-1, E-2, E-3).',
+      reportFamily: 'NBC',           // labels: "NBC1 CHEM" etc.
+      reportFamilyRange: 'NBC1/2/3',
+      cdmFormatVerified: false,      // CDM format pending transcription
+      hasTypeD: false,
+      // Enumeration codes whose `unverified` flag is suppressed (treated
+      // as verified) under this standard. Empty = AFTTP defaults.
+      verifiedCodes: { golfDelivery:[], golfContainer:[] }
+    },
+    ATP45E: {
+      key: 'ATP45E',
+      shortLabel: 'ATP-45E',
+      citationShort: 'NATO ATP-45 Edition E, Version 1 (January 2014; STANAG 2103)',
+      citationLong:
+        'Field, type, enumeration, and report definitions per NATO '+
+        'ATP-45 Edition E, Version 1 (January 2014; STANAG 2103). '+
+        'Reports renamed CBRN 1/2/3 CHEM; phonetic set names (ALFA, BRAVO, '+
+        'DELTA, FOXTROT, GOLF, INDIA, PAPAA, PAPAX, TANGO, YANKEE, ZULU, '+
+        'GENTEXT) and Type A/B/C hazard-distance numbers are unchanged. '+
+        'CDM format per Annex C (AREAM/ZULUM/UNITM/WHISKEYM/XRAYM/YANKEEM). '+
+        'Type D (industrial / TIM release) per §0319.',
+      reportFamily: 'CBRN',
+      reportFamilyRange: 'CBRN1/2/3',
+      cdmFormatVerified: true,
+      hasTypeD: true,
+      verifiedCodes: {
+        // PLT/RLD/TPT (Table C-1 §C012) and RCT (Table C-1 §C013) are
+        // explicitly listed in ATP-45(E) — no longer UNVERIFIED.
+        golfDelivery: ['PLT','RLD','TPT'],
+        golfContainer: ['RCT']
+      }
+    }
+  };
+  let current = 'AFTTP';
+  const listeners = [];
+
+  function get(){ return CONFIGS[current]; }
+  function getKey(){ return current; }
+  function set(key){
+    if (!CONFIGS[key] || key === current) return;
+    current = key;
+    listeners.forEach(fn => { try { fn(get()); } catch(e){ App.Log.add('std-listener', e.message); } });
+    App.Log.add('std', 'standard switched to '+key);
+  }
+  function toggle(){ set(current === 'AFTTP' ? 'ATP45E' : 'AFTTP'); }
+  function subscribe(fn){ listeners.push(fn); }
+  // Returns true if the enumeration entry is verified under the active
+  // standard. An entry can be `verified` by either having no `unverified`
+  // flag, OR by being in the active standard's `verifiedCodes` allow-list.
+  function isVerified(enumKey, code){
+    const cfg = get();
+    const list = (cfg.verifiedCodes && cfg.verifiedCodes[enumKey]) || [];
+    return list.includes(code);
+  }
+  return { get, getKey, set, toggle, subscribe, isVerified };
+})();
 
 /* ============================================================
    ENUMERATIONS — transcribed from Table III-2 (and III-3/III-4
@@ -1126,8 +1240,10 @@ App.Decoder = (function(){
       const e = (App.Enumerations[fieldDef.enumKey] || []).find(x => x.code === raw);
       if (e){
         out.decodedLabel = e.label;
-        if (e.unverified){ out.unverified = true;
-          out.warnings.push('value '+raw+' marked UNVERIFIED in source enumeration'); }
+        if (e.unverified && !App.Standard.isVerified(fieldDef.enumKey, e.code)){
+          out.unverified = true;
+          out.warnings.push('value '+raw+' marked UNVERIFIED in source enumeration');
+        }
       } else if (fieldDef.altSpec){
         // No-op: probably the numeric branch.
       } else {
@@ -1322,7 +1438,7 @@ App.Shell = (function(){
   // Header prepended to every exported artifact per §6.5.
   function exportHeader(){
     return '# TRAINING USE ONLY — Not for operational use\n' +
-           '# Source: FM 3-11.3 / MCWP 3-37.2A / NTTP 3-11.25 / AFTTP(I) 3-2.56 (2 Feb 2006)\n';
+           '# Source: '+App.Standard.get().citationShort+'\n';
   }
 
   function downloadText(filename, content){
@@ -1334,7 +1450,8 @@ App.Shell = (function(){
       meta: {
         product: 'Mobile CBRN App',
         notice:  'TRAINING USE ONLY — Not for operational use',
-        source:  'FM 3-11.3 / MCWP 3-37.2A / NTTP 3-11.25 / AFTTP(I) 3-2.56 (2 Feb 2006)',
+        source:  App.Standard.get().citationShort,
+        standard: App.Standard.getKey(),
         savedAt: new Date().toISOString(),
         schema:  'cbrn-scenario/1'
       },
@@ -1547,7 +1664,8 @@ App.Module1 = (function(){
       input = document.createElement('select');
       input.appendChild(mkOpt('', '— (none)'));
       (App.Enumerations[fDef.enumKey]||[]).forEach(e=>{
-        const o = mkOpt(e.code, e.code + ' — ' + e.label + (e.unverified?' [UNVERIFIED]':''));
+        const uv = e.unverified && !App.Standard.isVerified(fDef.enumKey, e.code);
+        const o = mkOpt(e.code, e.code + ' — ' + e.label + (uv?' [UNVERIFIED]':''));
         input.appendChild(o);
       });
       input.value = value || '';
@@ -1794,7 +1912,8 @@ App.Module1 = (function(){
           (f.help?'<div class="desc" style="font-size:12px;margin-top:2px">'+escapeHTML(f.help)+'</div>':'');
         if (f.enumKey){
           const list = (App.Enumerations[f.enumKey]||[]).map(e=>{
-            return e.code+' = '+e.label+(e.unverified?' [UNVERIFIED]':'');
+            const uv = e.unverified && !App.Standard.isVerified(f.enumKey, e.code);
+            return e.code+' = '+e.label+(uv?' [UNVERIFIED]':'');
           }).join('\n');
           html += '<div class="ref-enum">'+escapeHTML(list)+'</div>';
         }
@@ -2112,10 +2231,13 @@ App.CDM = (function(){
   // (Y > X > W) as a safe default and surfaces a warning so the user
   // overrides with the correct period in the editable form.
   function extract(toks){
+    const stdCfg = App.Standard.get();
     const out = {
       downwindDirectionDeg: null, downwindSpeedKph: null,
       stabilityCode: null, sourceLines: [], warnings: [],
-      unverified: true   // until CDM format is transcribed
+      // CDM format is canonical under ATP-45(E) Annex C; the legacy
+      // AFTTP code path keeps the UNVERIFIED tag (open item M2-OI-1).
+      unverified: !stdCfg.cdmFormatVerified
     };
     // Try-in-order: prefer real CDM period sets, fall back to plain
     // NBC3-style YANKEE/ZULU if no CDM period sets are present.
@@ -2157,7 +2279,9 @@ App.CDM = (function(){
     if (out.downwindDirectionDeg == null) out.warnings.push('downwind direction not found (looked in YANKEEM/XRAYM/WHISKEYM/YANKEE field 0)');
     if (out.downwindSpeedKph == null)     out.warnings.push('downwind speed not found (looked in YANKEEM/XRAYM/WHISKEYM/YANKEE field 1)');
     if (out.stabilityCode == null)        out.warnings.push('stability code not found (looked in YANKEEM/XRAYM/WHISKEYM field 2 / ZULU field 0)');
-    out.warnings.push('CDM line/set format UNVERIFIED (open item M2-OI-1)');
+    if (!stdCfg.cdmFormatVerified){
+      out.warnings.push('CDM line/set format UNVERIFIED (open item M2-OI-1)');
+    }
     return out;
   }
 
@@ -2495,6 +2619,23 @@ App.Plotting = (function(){
     const persist = (inp.persistency||'').toUpperCase();
     const burst = inp.burst || 'surface';
 
+    // Step 0: ATP-45(E) Type D (industrial / TIM release) [§0319].
+    // Release radius 1 km. Hazard area 3 km — concentric at ≤10 km/h,
+    // 30° wedge with DHD = 3 km at >10 km/h. Air-stability category
+    // is not consulted (parallel to Type B treatment).
+    if (inp.isTypeD){
+      const windBand = (w == null) ? null : (w <= 10 ? 'low' : 'high');
+      if (windBand == null) warnings.push('wind speed missing — cannot resolve Type D sub-case');
+      const sub = (windBand === 'high') ? 2 : 1;
+      return {
+        type:'D', caseNum: sub,
+        attackRadiusKm: 1,
+        hazardRadiusKm: sub === 1 ? 3 : null,
+        dhdSource: sub === 2 ? 'fixed-3' : null,
+        warnings,
+        citation:'ATP-45(E) §0319 Type D Case '+sub+' (industrial / TIM release)'
+      };
+    }
     // Step 1: NBC4 detection ⇒ Type C [M3.3 step 1]
     if (inp.isNbc4){
       return {
@@ -2760,7 +2901,27 @@ App.Plotting = (function(){
       errors.push('downwind direction missing — required for Case '+determ.caseNum);
     }
 
-    if (determ.type === 'C'){
+    if (determ.type === 'D'){
+      // ATP-45(E) §0319: release r=1 km. Hazard area r=3 km concentric
+      // for wind ≤10 km/h (sub-case 1); 30° wedge with DHD=3 km for
+      // wind >10 km/h (sub-case 2). Upwind extension 2R=2 km matches
+      // Type A/B wedge construction.
+      if (determ.caseNum === 1){
+        geometry = concentric(inp.primaryLabel, 1, 3);
+        dimensions.hazardRangeKm = 3;
+      } else if (determ.caseNum === 2){
+        if (inp.downwindDirectionDeg == null || isNaN(inp.downwindDirectionDeg)){
+          errors.push('downwind direction missing — required for Type D Case 2');
+        }
+        dimensions.hazardRangeKm = 3;
+        dimensions.upwindKm = 2;
+        dimensions.halfAngleDeg = 30;
+        geometry = singleWedge(inp.primaryLabel, 1, inp.downwindDirectionDeg||0, 3);
+        dhd = { dhdKm:3, source:'fixed-3-typeD', warnings:[] };
+      } else {
+        geometry = { shapes:[], extentKm:5 };
+      }
+    } else if (determ.type === 'C'){
       geometry = concentric(inp.primaryLabel || 'detection', 10, 10);
       // For Type C the inner circle equals outer — drop the duplicate
       geometry.shapes = geometry.shapes.filter(s=>!(s.kind==='circle' && s.role==='attack'));
@@ -2902,6 +3063,20 @@ App.Plotting = (function(){
         label:'10 km', side:'right' });
       ann.push({ kind:'region-label', at:{x:0, y:7},
         text:'Attack + Hazard Area' });
+      return ann;
+    }
+
+    // Type D (ATP-45(E) §0319) — Case 1 concentric 1 km / 3 km; Case 2
+    // wedge with R=1 km, DHD=3 km, upwind 2 km, ±30° half-angle.
+    if (determ.type === 'D' && determ.caseNum === 1){
+      ann.push({ kind:'dim-arrow', from:{x:0,y:0}, to:{x:-R, y:0},
+        label: R+' km', side:'below' });
+      ann.push({ kind:'dim-arrow', from:{x:0,y:0}, to:{x:0, y:-D},
+        label: D+' km', side:'right' });
+      ann.push({ kind:'region-label', at:{x:-D*0.5, y: D*0.5},
+        text:'Hazard Area' });
+      ann.push({ kind:'region-label', at:{x: D*0.55, y: R + (D-R)*0.25},
+        text:'Release Area', leaderTo:{x: R*0.5, y: R*0.3} });
       return ann;
     }
 
@@ -3769,10 +3944,12 @@ App.Module3 = (function(){
       return null;
     })();
 
+    const tdEl = document.getElementById('plotTypeD');
     return {
       container, burst, persistency, agent, gentextStatement: gentext,
       primaryLabel: primaryGrid,
       isNbc4: document.getElementById('plotNbc4').checked,
+      isTypeD: !!(tdEl && tdEl.checked && App.Standard.get().hasTypeD),
       isLineAttack: isLine,
       endpoints,
       windSpeedKph:        cdm ? cdm.downwindSpeedKph : null,
@@ -4495,6 +4672,93 @@ App.Tests = (function(){
     eq(r.caseNum, 2);
   });
 
+  /* ---- Standard switcher (AFTTP ↔ ATP-45(E)) ---- */
+  add('standard: default is AFTTP', ()=>{
+    eq(App.Standard.getKey(), 'AFTTP');
+    eq(App.Standard.get().reportFamily, 'NBC');
+    eq(App.Standard.get().hasTypeD, false);
+  });
+  add('standard: toggle switches ATP45E and back', ()=>{
+    App.Standard.toggle();
+    try{
+      eq(App.Standard.getKey(), 'ATP45E');
+      eq(App.Standard.get().reportFamily, 'CBRN');
+      eq(App.Standard.get().hasTypeD, true);
+      eq(App.Standard.isVerified('golfContainer','RCT'), true);
+      eq(App.Standard.isVerified('golfContainer','BML'), false); // not in allow-list (was already verified)
+    } finally {
+      App.Standard.set('AFTTP');
+      eq(App.Standard.getKey(), 'AFTTP');
+    }
+  });
+  add('standard: exportHeader cites the active standard', ()=>{
+    App.Standard.set('ATP45E');
+    try {
+      assert(App.Shell.exportHeader().includes('ATP-45 Edition E'),
+        'exportHeader should cite ATP-45 Edition E under ATP45E');
+    } finally { App.Standard.set('AFTTP'); }
+    assert(App.Shell.exportHeader().includes('AFTTP(I) 3-2.56'),
+      'exportHeader should cite AFTTP(I) 3-2.56 under AFTTP default');
+  });
+  add('standard: AFTTP suppresses isTypeD even if flag passed', ()=>{
+    // determine() honors isTypeD regardless of standard — gating happens
+    // at the UI layer (gatherInputs only sets it under ATP45E). So this
+    // test verifies the engine-level path: when isTypeD is true the
+    // engine ALWAYS produces a Type D result, leaving the UI/gather
+    // layer responsible for not setting it under AFTTP.
+    const r = det({ isTypeD:true, windSpeedKph:5 });
+    eq(r.type, 'D');
+  });
+
+  /* ---- Type D plotting (ATP-45(E) §0319) ---- */
+  add('Type D: low wind → concentric 1 km / 3 km', ()=>{
+    const r = det({ isTypeD:true, windSpeedKph:5 });
+    eq(r.type, 'D'); eq(r.caseNum, 1);
+    eq(r.attackRadiusKm, 1); eq(r.hazardRadiusKm, 3);
+  });
+  add('Type D: high wind → wedge sub-case 2', ()=>{
+    const r = det({ isTypeD:true, windSpeedKph:15 });
+    eq(r.type, 'D'); eq(r.caseNum, 2);
+    eq(r.attackRadiusKm, 1);
+    assert(r.hazardRadiusKm == null, 'sub-case 2 uses DHD=3, not a hazard circle');
+  });
+  add('Type D: compute produces wedge geometry at 15 kph', ()=>{
+    const out = App.Plotting.compute({
+      isTypeD:true, windSpeedKph:15, downwindDirectionDeg:90, primaryLabel:'TIM'
+    });
+    eq(out.determination.type, 'D');
+    eq(out.dimensions.hazardRangeKm, 3);
+    eq(out.dimensions.upwindKm, 2);
+    eq(out.dimensions.halfAngleDeg, 30);
+    assert(out.geometry.shapes.some(s=>s.kind==='wedge' && s.dhdKm===3),
+      'expected a 3-km wedge shape');
+  });
+  add('Type D: compute produces concentric geometry at 5 kph', ()=>{
+    const out = App.Plotting.compute({
+      isTypeD:true, windSpeedKph:5, primaryLabel:'TIM'
+    });
+    eq(out.determination.type, 'D');
+    eq(out.dimensions.hazardRangeKm, 3);
+    const circles = out.geometry.shapes.filter(s=>s.kind==='circle');
+    assert(circles.some(c=>c.r===3 && c.role==='hazard'), 'hazard r=3 circle');
+    assert(circles.some(c=>c.r===1 && c.role==='attack'), 'release r=1 circle');
+  });
+
+  /* ---- CDM verified flag follows active standard ---- */
+  add('CDM: AFTTP marks parsed CDM UNVERIFIED', ()=>{
+    const toks = App.Tokenizer.tokenize('WHISKEYM/090/008/4/10/-/6/1//');
+    const r = App.CDM.extract(toks);
+    eq(r.unverified, true);
+  });
+  add('CDM: ATP-45(E) treats CDM format as verified', ()=>{
+    App.Standard.set('ATP45E');
+    try {
+      const toks = App.Tokenizer.tokenize('WHISKEYM/090/008/4/10/-/6/1//');
+      const r = App.CDM.extract(toks);
+      eq(r.unverified, false);
+    } finally { App.Standard.set('AFTTP'); }
+  });
+
   /* ---- DHD lookup (Table E-3 simplified) ---- */
   add('DHD: SHL Unstable → 10 km (Table E-3)', ()=>{
     const r = App.Plotting.lookupDhd({}, { container:'SHL', burst:'surface', stabilityCode:'2' });
@@ -4829,6 +5093,67 @@ App.Tests = (function(){
   // Header buttons.
   document.getElementById('btnBack').addEventListener('click', ()=>App.Shell.navigate('home'));
   document.getElementById('btnMenu').addEventListener('click', ()=>App.Shell.navigate('home'));
+
+  // Standard-switcher pill — toggles the active reporting/plotting
+  // standard between AFTTP(I) 3-2.56 and ATP-45 Edition E.
+  const stdBtn  = document.getElementById('btnStandard');
+  const stdName = document.getElementById('btnStandardName');
+  let stdInitialized = false;
+  function applyStandard(cfg){
+    // Pill state
+    stdName.textContent = cfg.shortLabel;
+    stdBtn.classList.toggle('on', cfg.key !== 'AFTTP');
+    stdBtn.title = 'Active standard: '+cfg.shortLabel+' — tap to toggle';
+
+    // Home view citation and report-family range
+    const hc = document.getElementById('homeStdCitation');
+    if (hc) hc.textContent = cfg.citationShort;
+    const hr = document.getElementById('homeStdReports');
+    if (hr) hr.textContent = cfg.reportFamilyRange;
+
+    // Help & About citation card
+    const helpCit = document.getElementById('helpCitations');
+    if (helpCit) helpCit.textContent = cfg.citationLong;
+
+    // Module 1 report-type dropdown labels (NBC ↔ CBRN). The value=
+    // attribute stays "NBC1_CHEM" so scenario JSON, tests, and stored
+    // state are preserved across toggles.
+    document.querySelectorAll('#reportType option[data-stdshort]').forEach(opt=>{
+      const sh = opt.getAttribute('data-stdshort');     // "NBC1"
+      const num = sh.replace(/^NBC/,'');
+      const newShort = cfg.reportFamily + num;          // "NBC1" or "CBRN1"
+      const labels = {
+        '1':"observer's report",
+        '2':'evaluated data',
+        '3':'predicted hazard warning'
+      };
+      opt.textContent = newShort+' CHEM — '+labels[num];
+    });
+
+    // Module 3 Type D field visibility — only ATP-45(E) exposes it.
+    const tdField = document.getElementById('plotTypeDField');
+    if (tdField) tdField.style.display = cfg.hasTypeD ? '' : 'none';
+    if (!cfg.hasTypeD){
+      const td = document.getElementById('plotTypeD');
+      if (td) td.checked = false;       // can't be active under AFTTP
+    }
+
+    // CDM store view embeds the UNVERIFIED tag based on cdm.unverified,
+    // which is set at parse time — re-flag the currently-stored CDM so
+    // the banner matches the new standard without forcing a re-parse.
+    const cdm = App.Store.get('parsedCDM');
+    if (cdm){
+      cdm.unverified = !cfg.cdmFormatVerified;
+      App.Store.set('parsedCDM', cdm);   // triggers subscribers
+    }
+
+    if (stdInitialized) toast('Standard: '+cfg.shortLabel);
+    stdInitialized = true;
+  }
+  stdBtn.addEventListener('click', ()=>App.Standard.toggle());
+  App.Standard.subscribe(applyStandard);
+  // Initial paint — apply default standard's labels to the UI.
+  applyStandard(App.Standard.get());
 
   // Tests.
   document.getElementById('runTestsBtn').addEventListener('click', ()=>App.Tests.run());

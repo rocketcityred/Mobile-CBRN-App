@@ -1,0 +1,27 @@
+<!doctype html><meta charset="utf-8"><title>cbrn-tests-loading</title>
+<iframe id="f" src="index.html" style="width:1px;height:1px;opacity:0"></iframe>
+<pre id="out">loading…</pre>
+<script>
+function poll(){
+  const f = document.getElementById('f');
+  try {
+    const w = f.contentWindow;
+    if (w && w.App && w.App.Tests) {
+      const r = w.App.Tests.run();
+      const root = w.document.getElementById('testResults');
+      const fails = [];
+      if (root) root.querySelectorAll('.test-row.fail').forEach(row=>{
+        fails.push(row.querySelector('.nm').textContent + ': ' +
+          (row.querySelector('.err')?row.querySelector('.err').textContent:'?'));
+      });
+      const payload = { pass:r.pass, fail:r.fail, total:r.total,
+        stdKey: w.App.Standard.getKey(), failures: fails };
+      document.title = 'RESULT:' + encodeURIComponent(JSON.stringify(payload));
+      document.getElementById('out').textContent = JSON.stringify(payload, null, 2);
+      return;
+    }
+  } catch(e) {}
+  setTimeout(poll, 100);
+}
+poll();
+</script>
