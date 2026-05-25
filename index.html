@@ -435,7 +435,7 @@ details[open] summary{margin-bottom:6px}
         <label for="plotSource">Source of NBC3/NBC4 inputs</label>
         <select id="plotSource">
           <option value="quick">Quick entry (manual fields)</option>
-          <option value="mod1">Use current Module 1 form (NBC3 CHEM)</option>
+          <option value="mod1">Use current Module 1 form (NBC2 or NBC3 CHEM)</option>
         </select>
       </div>
       <div id="plotQuickFields">
@@ -2078,29 +2078,61 @@ App.CDM = (function(){
 
   // Extract plotting-critical values from tokenized CDM sets.
   // Heuristic until M2-OI-1 is resolved.
+  // Real CDM (from FM 3-11.3 Appendix D / E worked examples) uses the
+  // M-suffixed set names for the three weather periods:
+  //   WHISKEYM = period 1, XRAYM = period 2, YANKEEM = period 3.
+  // Each period's fields are: direction / speed / stability / temp /
+  // humidity / cloud / precip (positional; units carried by UNITM).
+  // The plotter must use the period covering the attack DTG. Without
+  // attack-time matching here, extract picks the latest period present
+  // (Y > X > W) as a safe default and surfaces a warning so the user
+  // overrides with the correct period in the editable form.
   function extract(toks){
     const out = {
       downwindDirectionDeg: null, downwindSpeedKph: null,
       stabilityCode: null, sourceLines: [], warnings: [],
       unverified: true   // until CDM format is transcribed
     };
+    // Try-in-order: prefer real CDM period sets, fall back to plain
+    // NBC3-style YANKEE/ZULU if no CDM period sets are present.
+    const periodPref = ['YANKEEM','XRAYM','WHISKEYM','YANKEE'];
+    const found = {};
     for (const tok of toks){
       out.sourceLines.push(tok.setName + '/' + tok.fields.join('/') + '//');
-      if (tok.setName === 'YANKEE' && tok.fields.length >= 2){
-        const d = parseDirection(tok.fields[0]);
-        const s = parseSpeed(tok.fields[1]);
-        if (d) out.downwindDirectionDeg = d.deg;
-        if (s) out.downwindSpeedKph = s.kph;
-      }
-      // Heuristic: ZULU field 1 holds stability code in NBC3 samples;
-      // CDM may carry stability differently. Mark UNVERIFIED.
-      if (tok.setName === 'ZULU' && tok.fields.length >= 1){
-        out.stabilityCode = tok.fields[0];
+      found[tok.setName] = tok;
+    }
+    let pickedPeriod = null;
+    for (const name of periodPref){
+      if (found[name] && found[name].fields.length >= 2){
+        pickedPeriod = found[name];
+        break;
       }
     }
-    if (out.downwindDirectionDeg == null) out.warnings.push('downwind direction not found in CDM (looked in YANKEE field 1)');
-    if (out.downwindSpeedKph == null)     out.warnings.push('downwind speed not found in CDM (looked in YANKEE field 2)');
-    if (out.stabilityCode == null)        out.warnings.push('stability code not found in CDM (looked in ZULU field 1)');
+    if (pickedPeriod){
+      const f = pickedPeriod.fields;
+      const d = parseDirection(f[0]);
+      const s = parseSpeed(f[1]);
+      if (d) out.downwindDirectionDeg = d.deg;
+      if (s) out.downwindSpeedKph = s.kph;
+      // For period sets (W/X/YM), stability is field 2. For plain
+      // YANKEE there's no stability, fall back to ZULU.
+      if (pickedPeriod.setName !== 'YANKEE' && f.length >= 3){
+        out.stabilityCode = f[2] || null;
+      }
+      if (pickedPeriod.setName !== 'YANKEE'){
+        out.warnings.push('CDM uses M-suffix period sets; defaulted to '+
+          pickedPeriod.setName+' (latest available). If the attack falls in '+
+          'a different period, override the values before saving.');
+      }
+    }
+    // Stability fallback: prefer M-suffixed period field 2 (above);
+    // otherwise ZULU field 0 (NBC3 style).
+    if (out.stabilityCode == null && found.ZULU && found.ZULU.fields.length >= 1){
+      out.stabilityCode = found.ZULU.fields[0];
+    }
+    if (out.downwindDirectionDeg == null) out.warnings.push('downwind direction not found (looked in YANKEEM/XRAYM/WHISKEYM/YANKEE field 0)');
+    if (out.downwindSpeedKph == null)     out.warnings.push('downwind speed not found (looked in YANKEEM/XRAYM/WHISKEYM/YANKEE field 1)');
+    if (out.stabilityCode == null)        out.warnings.push('stability code not found (looked in YANKEEM/XRAYM/WHISKEYM field 2 / ZULU field 0)');
     out.warnings.push('CDM line/set format UNVERIFIED (open item M2-OI-1)');
     return out;
   }
@@ -2126,16 +2158,18 @@ App.CDM = (function(){
     };
   }
 
-  // Fallback path: derive a plotting CDM from the Module 1 NBC3
+  // Fallback path: derive a plotting CDM from a Module 1 NBC2 or NBC3
   // form's YANKEE (downwind direction & speed) and ZULU (stability).
   // Per FM 3-11.3 doctrine the CDM is authoritative for plotting —
   // these values are the observer's local readings, not the broader
   // hazard-area forecast. Returns null when YANKEE/ZULU are missing
-  // or empty; otherwise tags `source:'nbc3-fallback'` so the UI can
+  // or empty, or when the report type isn't a CHEM evaluator/predictor
+  // form; otherwise tags `source:'nbc3-fallback'` so the UI can
   // surface that the CDM is derived, not real.
   function fromNBC3State(mod1State){
     if (!mod1State || !mod1State.sets) return null;
-    if (mod1State.reportType !== 'NBC3_CHEM') return null;
+    if (mod1State.reportType !== 'NBC3_CHEM' &&
+        mod1State.reportType !== 'NBC2_CHEM') return null;
     const sets = mod1State.sets;
     const yankee = sets.YANKEE && sets.YANKEE[0] && sets.YANKEE[0].fields;
     const zulu   = sets.ZULU   && sets.ZULU[0]   && sets.ZULU[0].fields;
@@ -2212,21 +2246,39 @@ App.Module2 = (function(){
     document.getElementById('cdmQuickResult').innerHTML='';
   }
 
+  // Pasted-CDM source lines from the most recent parse, kept so the
+  // explicit Save action can attach them to the stored CDM for audit.
+  let lastParsedSourceLines = [];
+
   function parsePaste(){
     const text = document.getElementById('cdmInput').value;
     const toks = App.Tokenizer.tokenize(text);
     const cdm = App.CDM.extract(toks);
-    cdm.source = 'paste';
-    App.Store.set('parsedCDM', cdm);
+    lastParsedSourceLines = cdm.sourceLines.slice();
     const out = document.getElementById('cdmPasteResult');
-    let html = '<div class="card"><h3>Extracted values</h3><div class="kv">'+
-      '<div class="k">direction (°)</div><div class="v">'+(cdm.downwindDirectionDeg!=null? cdm.downwindDirectionDeg.toFixed(2) : '—')+'</div>'+
-      '<div class="k">speed (km/h)</div><div class="v">'+(cdm.downwindSpeedKph!=null? cdm.downwindSpeedKph.toFixed(2) : '—')+'</div>'+
-      '<div class="k">stability</div><div class="v">'+(cdm.stabilityCode||'—')+'</div>'+
+    // Editable form pre-filled with heuristic-extracted values. The
+    // user reviews / corrects them, THEN explicitly hits Save — the
+    // store is no longer mutated as a side effect of Parse.
+    const dirVal = (cdm.downwindDirectionDeg != null) ? cdm.downwindDirectionDeg.toFixed(2) : '';
+    const spdVal = (cdm.downwindSpeedKph     != null) ? cdm.downwindSpeedKph.toFixed(2)     : '';
+    const stbVal = cdm.stabilityCode || '';
+    let html = '<div class="card"><h3>Extracted values (review &amp; edit before saving)</h3>'+
+      '<p class="notes"><span class="tag unverified">UNVERIFIED</span> heuristic — '+
+      'real CDM line/set format is open item M2-OI-1. If a value below is blank or wrong, '+
+      'fix it here before saving (the parser looks for direction/speed in YANKEE and '+
+      'stability in ZULU, which may not match a real CDM).</p>'+
+      '<div class="field"><label for="cdmPasteDir">Downwind direction (°)</label>'+
+      '<input type="text" id="cdmPasteDir" inputmode="decimal" value="'+escAttr(dirVal)+'" placeholder="e.g. 105"></div>'+
+      '<div class="field"><label for="cdmPasteSpeed">Downwind speed (km/h)</label>'+
+      '<input type="text" id="cdmPasteSpeed" inputmode="decimal" value="'+escAttr(spdVal)+'" placeholder="e.g. 9"></div>'+
+      '<div class="field"><label for="cdmPasteStab">Air stability category</label>'+
+      '<input type="text" id="cdmPasteStab" inputmode="decimal" value="'+escAttr(stbVal)+'" placeholder="e.g. 4"></div>'+
+      '<div class="row" style="margin-top:8px">'+
+      '<button class="primary" id="cdmSavePaste">Save to plotting store</button>'+
+      '<button class="ghost" id="cdmRevertPaste">Revert to extracted</button>'+
       '</div>';
-    html += '<p><span class="tag unverified">UNVERIFIED</span> CDM heuristic parse (M2-OI-1).</p>';
     if (cdm.warnings.length){
-      html += '<div class="validation warn"><ul>'+
+      html += '<div class="validation warn" style="margin-top:8px"><strong>Parse warnings:</strong><ul>'+
         cdm.warnings.map(w=>'<li>'+escHTML(w)+'</li>').join('')+'</ul></div>';
     }
     html += '</div>';
@@ -2239,12 +2291,38 @@ App.Module2 = (function(){
     });
     html += '</div>';
     out.innerHTML = html;
+    // Wire the freshly-rendered Save/Revert buttons.
+    document.getElementById('cdmSavePaste').addEventListener('click', savePaste);
+    document.getElementById('cdmRevertPaste').addEventListener('click', ()=>{
+      document.getElementById('cdmPasteDir').value   = dirVal;
+      document.getElementById('cdmPasteSpeed').value = spdVal;
+      document.getElementById('cdmPasteStab').value  = stbVal;
+      toast('Reverted to extracted values');
+    });
+    toast(toks.length ? ('Parsed '+toks.length+' set(s) — review and Save') : 'Nothing to parse');
+  }
+  function savePaste(){
+    const dir = document.getElementById('cdmPasteDir').value;
+    const spd = document.getElementById('cdmPasteSpeed').value;
+    const stb = document.getElementById('cdmPasteStab').value;
+    const cdm = App.CDM.fromQuick(dir, spd, stb);
+    cdm.source = 'paste';
+    cdm.sourceLines = lastParsedSourceLines.slice();  // audit context
+    App.Store.set('parsedCDM', cdm);
     renderStoreView();
-    toast('CDM extracted');
+    if (cdm.warnings.length){
+      toast('Saved — '+cdm.warnings.length+' warning(s); check plotting store card');
+    } else {
+      toast('Saved to plotting store');
+    }
   }
   function clearPaste(){
     document.getElementById('cdmInput').value='';
     document.getElementById('cdmPasteResult').innerHTML='';
+    lastParsedSourceLines = [];
+  }
+  function escAttr(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
   function escHTML(s){
@@ -2677,7 +2755,18 @@ App.Plotting = (function(){
         }
       }
     } else {
-      errors.push('case '+determ.caseNum+' geometry not implemented');
+      // The only way to land here for a valid Type A/B is determine()
+      // returning caseNum=null, which happens when wind speed is missing
+      // (Type A needs wind to pick Case 1 ≤10 vs Case 2 >10; Type B
+      // similarly). Surface the actual missing input, not the symptom.
+      if (determ.caseNum == null && (determ.type === 'A' || determ.type === 'B')){
+        errors.push('Wind speed missing — required to choose Case '+
+          (determ.type==='A'?'1 (≤10 kph) vs Case 2 (>10 kph)':
+                              '1/3/5 (≤10 kph) vs Case 2/4/6 (>10 kph)')+
+          '. Save a CDM in Module 2 (Quick or Paste) with a numeric speed.');
+      } else {
+        errors.push('case '+determ.caseNum+' geometry not implemented');
+      }
       geometry = { shapes:[], extentKm:5 };
     }
 
@@ -3551,10 +3640,15 @@ App.Module3 = (function(){
     let gentext     = document.getElementById('plotGentext').value;
 
     if (source === 'mod1'){
-      // Pull from Module 1's current form (NBC3 CHEM only).
+      // Pull from Module 1's current form. NBC2 ("evaluated data") and
+      // NBC3 ("predicted hazard warning") both carry the attack-detail
+      // sets the plotter needs (ALFA/DELTA/FOXTROT/GOLF/INDIA/YANKEE/
+      // ZULU). Plotting from an NBC2 is in fact the workflow that
+      // produces the corresponding NBC3.
       const st = App.Module1._state;
-      if (st.reportType !== 'NBC3_CHEM'){
-        return { _error:'Module 1 is not on NBC3 CHEM — switch report type or use Quick entry.' };
+      if (st.reportType !== 'NBC3_CHEM' && st.reportType !== 'NBC2_CHEM'){
+        return { _error:'Module 1 is on '+st.reportType+'; the plotter accepts '+
+          'NBC2 CHEM or NBC3 CHEM. Switch report type or use Quick entry.' };
       }
       const sets = st.sets || {};
       if (sets.FOXTROT && sets.FOXTROT[0]) primaryGrid = sets.FOXTROT[0].fields[0] || primaryGrid;
@@ -3852,8 +3946,10 @@ App.Module3 = (function(){
       if (!isQuick){
         const m1 = App.Module1._state;
         st.style.display = '';
+        const ok = (m1.reportType === 'NBC2_CHEM' || m1.reportType === 'NBC3_CHEM');
         st.innerHTML = 'Reading from Module 1 (current report type: <strong>'+m1.reportType+'</strong>). '+
-          'Switch Module 1 to NBC3_CHEM before computing.';
+          (ok ? 'NBC2 and NBC3 CHEM are both accepted.'
+              : '<span style="color:var(--err)">Switch Module 1 to NBC2 CHEM or NBC3 CHEM before computing.</span>');
       } else {
         st.style.display = 'none';
       }
@@ -4123,6 +4219,41 @@ App.Tests = (function(){
     eq(c.stabilityCode, '4');
     assert(c.unverified, 'must remain UNVERIFIED until M2-OI-1 resolved');
   });
+  add('CDM: extract recognizes real CDM YANKEEM (M-suffix period set)', ()=>{
+    // From the manual CDM example: UNITM declares units, period sets
+    // carry plain-number fields (direction/speed/stability/temp/...).
+    const toks = App.Tokenizer.tokenize(
+      'UNITM/KM/DGT/KPH/C//'+
+      'WHISKEYM/140/008/4/06/8/-/2//'+
+      'XRAYM/140/012/4/10/8/-/2//'+
+      'YANKEEM/150/014/4/14/8/-/2//');
+    const c = App.CDM.extract(toks);
+    // Picks the latest period present (YANKEEM).
+    eq(c.downwindDirectionDeg, 150);
+    eq(c.downwindSpeedKph, 14);
+    eq(c.stabilityCode, '4');
+    assert(c.warnings.some(w => /defaulted to YANKEEM|period set/i.test(w)),
+      'expected a "defaulted to YANKEEM" warning so user can override');
+  });
+  add('CDM: extract falls back to WHISKEYM when YANKEEM/XRAYM absent', ()=>{
+    const toks = App.Tokenizer.tokenize('WHISKEYM/140/008/4/06/8/-/2//');
+    const c = App.CDM.extract(toks);
+    eq(c.downwindDirectionDeg, 140);
+    eq(c.downwindSpeedKph, 8);
+    eq(c.stabilityCode, '4');
+  });
+  add('Plotter: missing wind speed → specific error (not "case null geometry")', ()=>{
+    // Type A (NP) without wind speed used to fall through to a generic
+    // "case null geometry not implemented" — now should explicitly cite
+    // wind speed as the missing input.
+    const r = App.Plotting.compute({
+      container:'BML', persistency:'NP', windSpeedKph:null
+    });
+    assert(r.errors.some(e => /wind speed/i.test(e) && /case 1|case 2/i.test(e)),
+      'expected an actionable wind-speed error; got: '+JSON.stringify(r.errors));
+    assert(!r.errors.some(e => /not implemented/.test(e)),
+      'should not surface the generic "not implemented" message; got: '+JSON.stringify(r.errors));
+  });
   add('CDM: fromNBC3State derives values from YANKEE/ZULU', ()=>{
     const st = {
       reportType:'NBC3_CHEM',
@@ -4143,10 +4274,25 @@ App.Tests = (function(){
     const st = { reportType:'NBC3_CHEM', sets:{} };
     eq(App.CDM.fromNBC3State(st), null);
   });
-  add('CDM: fromNBC3State rejects non-NBC3 report types', ()=>{
+  add('CDM: fromNBC3State rejects non-NBC2/NBC3 report types', ()=>{
     const st = { reportType:'NBC1_CHEM',
       sets:{ YANKEE:[{fields:['147DGT','009KPH']}], ZULU:[{fields:['2']}] } };
     eq(App.CDM.fromNBC3State(st), null);
+  });
+  add('CDM: fromNBC3State accepts NBC2 CHEM (plotting from evaluated data)', ()=>{
+    const st = {
+      reportType:'NBC2_CHEM',
+      sets:{
+        YANKEE:[{fields:['147DGT','009KPH']}],
+        ZULU:  [{fields:['2','15C','6','-','2']}]
+      }
+    };
+    const c = App.CDM.fromNBC3State(st);
+    assert(c != null, 'NBC2 should derive a fallback CDM');
+    eq(c.downwindDirectionDeg, 147);
+    eq(c.downwindSpeedKph, 9);
+    eq(c.stabilityCode, '2');
+    eq(c.source, 'nbc3-fallback');
   });
 
   /* ============================================================
