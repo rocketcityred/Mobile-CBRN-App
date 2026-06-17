@@ -894,11 +894,14 @@ App.Enumerations = {
      can opt specific codes in without changing this dictionary. */
 
   // USAF MSGID field 1 — message kind (free-text-ish per sample;
-  // "CBRN 3 CHEM" attested).
+  // "CBRN 3 CHEM" and "CBRN 3 NUC" attested).
   usafMsgKind: [
-    { code:'CBRN 3 CHEM', label:'CBRN 3 — chemical predicted hazard', unverified:true },
+    { code:'CBRN 3 CHEM', label:'CBRN 3 — chemical predicted hazard' },
+    { code:'CBRN 3 NUC',  label:'CBRN 3 — nuclear predicted hazard' },
     { code:'CBRN 1 CHEM', label:'CBRN 1 — chemical observer\'s report', unverified:true },
-    { code:'CBRN 2 CHEM', label:'CBRN 2 — chemical evaluated data', unverified:true }
+    { code:'CBRN 2 CHEM', label:'CBRN 2 — chemical evaluated data', unverified:true },
+    { code:'CBRN 1 NUC',  label:'CBRN 1 — nuclear observer\'s report', unverified:true },
+    { code:'CBRN 2 NUC',  label:'CBRN 2 — nuclear evaluated data', unverified:true }
   ],
 
   // USAF FOXTROT field 1 — location qualifier (qualifier-then-grid order
@@ -908,13 +911,18 @@ App.Enumerations = {
     { code:'ESTIMATED', label:'Estimated location', unverified:true }
   ],
 
-  // USAF GOLF field 1 — delivery type.
+  // USAF GOLF field 1 — delivery type (CHEM) or burst type (NUC).
+  // The SAME code (AIR) is overloaded: "Aircraft" for CHEM, "Air burst"
+  // for NUC. Labels here use the CHEM meaning by default and the
+  // computation/UI surfaces context.
   usafGolfDelivery: [
     { code:'ARTY', label:'Artillery' },
-    { code:'AIR',  label:'Aircraft',    unverified:true },
+    { code:'AIR',  label:'Aircraft (CHEM) / Air burst (NUC)', unverified:true },
+    { code:'SURF', label:'Surface burst (NUC)' },
     { code:'MSL',  label:'Missile',     unverified:true },
     { code:'RKT',  label:'Rocket',      unverified:true },
     { code:'MOR',  label:'Mortar',      unverified:true },
+    { code:'MORT', label:'Mortar' },
     { code:'BOM',  label:'Bomb',        unverified:true },
     { code:'UNK',  label:'Unknown',     unverified:true }
   ],
@@ -946,18 +954,26 @@ App.Enumerations = {
   ],
 
   // USAF PA field 1 — attack-area shape.
+  // ZONE1 is the nuclear "Zone 1" (immediate damage / total destruction)
+  // and uses a labeled-parameter form: PA/ZONE1/RAD/<km>//.
   usafShapeAttack: [
     { code:'CIRCLE', label:'Circle (radius)' },
+    { code:'ZONE1',  label:'Nuclear Zone 1 (RAD = radius)' },
     { code:'RECT',   label:'Rectangle (length × width)', unverified:true },
     { code:'POINT',  label:'Point', unverified:true },
     { code:'LINE',   label:'Line (length × bearing)', unverified:true }
   ],
 
   // USAF PB field 1 — hazard-area shape.
+  // NONE  = explicit "no separate hazard area" (release area plotted alone).
+  // ZONE2 = nuclear fallout zone, labeled-parameter form:
+  //   PB/ZONE2/AZIMUTH/<deg>/DIST/<km>//
   usafShapeHazard: [
     { code:'WEDGE',  label:'Wedge (bearing + range)' },
+    { code:'ZONE2',  label:'Nuclear Zone 2 (AZIMUTH + DIST)' },
     { code:'CIRCLE', label:'Circle (radius)', unverified:true },
-    { code:'RECT',   label:'Rectangle (length × width)', unverified:true }
+    { code:'RECT',   label:'Rectangle (length × width)', unverified:true },
+    { code:'NONE',   label:'No separate hazard area (release-only plot)' }
   ]
 
 };
@@ -1322,12 +1338,15 @@ App.SetDefsUSAF = {
   },
 
   GOLF: {
-    desc: 'Delivery & quantity', v1:true, unverified:true,
+    // CHEM:  delivery (e.g. ARTY) + quantity (rounds/sorties)
+    // NUC:   burst type (SURF/AIR) + yield (e.g. 50KT)
+    // Quantity is widened to 1-10AN so yields like "50KT" parse cleanly.
+    desc: 'Delivery & quantity / Burst & yield', v1:true, unverified:true,
     fields: [
       { name:'delivery', spec:'1-10A', flag:'M', enumKey:'usafGolfDelivery',
-        help:'Delivery type (e.g., ARTY)' },
-      { name:'quantity', spec:'1-4N',  flag:'M',
-        help:'Quantity (rounds, sorties, etc.)' }
+        help:'CHEM delivery type (e.g., ARTY) or NUC burst type (SURF/AIR)' },
+      { name:'quantity', spec:'1-10AN', flag:'M',
+        help:'CHEM quantity (rounds/sorties) or NUC yield (e.g., 50KT)' }
     ]
   },
 
@@ -1343,31 +1362,40 @@ App.SetDefsUSAF = {
 
   PA: {
     // PA — predicted Attack-area geometry primitive.
-    // Field layout depends on the shape; we model it as
-    // shape + up to two dimensional parameters (radius / l / w / etc.).
+    // Two field-layout dialects are supported:
+    //   positional:        PA/CIRCLE/1KM//
+    //   labeled-parameter: PA/ZONE1/RAD/12KM//
+    // The trailing param slots are optional so both fit.
     desc: 'Predicted attack-area geometry', v1:true, unverified:true,
     fields: [
-      { name:'shape',   spec:'1-10A',  flag:'M', enumKey:'usafShapeAttack',
-        help:'CIRCLE, RECT, POINT, LINE' },
-      { name:'param1',  spec:'1-10X',  flag:'M',
-        help:'CIRCLE → radius (e.g., 1KM); RECT → length' },
-      { name:'param2',  spec:'1-10X',  flag:'O',
-        help:'RECT → width; LINE → bearing; otherwise unused' }
+      { name:'shape',  spec:'1-10A', flag:'M', enumKey:'usafShapeAttack',
+        help:'CIRCLE, ZONE1, RECT, POINT, LINE' },
+      { name:'param1', spec:'1-10X', flag:'M',
+        help:'CIRCLE → radius (e.g., 1KM); ZONE1 → "RAD" label' },
+      { name:'param2', spec:'1-10X', flag:'O',
+        help:'ZONE1 → radius value (e.g., 12KM); RECT → width' },
+      { name:'param3', spec:'1-10X', flag:'O' },
+      { name:'param4', spec:'1-10X', flag:'O' }
     ]
   },
 
   PB: {
     // PB — predicted hazard-area geometry primitive.
-    // For WEDGE: param1 = bearing (3N degrees), param2 = range (e.g. 10KM).
-    // For CIRCLE: param1 = radius.
+    // Positional:        PB/WEDGE/090/10KM//
+    // Labeled-parameter: PB/ZONE2/AZIMUTH/135/DIST/45KM//
     desc: 'Predicted hazard-area geometry', v1:true, unverified:true,
     fields: [
-      { name:'shape',   spec:'1-10A',  flag:'M', enumKey:'usafShapeHazard',
-        help:'WEDGE, CIRCLE, RECT' },
-      { name:'param1',  spec:'1-10X',  flag:'M',
-        help:'WEDGE → bearing (e.g., 090); CIRCLE → radius' },
-      { name:'param2',  spec:'1-10X',  flag:'O',
-        help:'WEDGE → range (e.g., 10KM); RECT → width' }
+      { name:'shape',  spec:'1-10A', flag:'M', enumKey:'usafShapeHazard',
+        help:'WEDGE, ZONE2, CIRCLE, RECT, NONE' },
+      { name:'param1', spec:'1-10X', flag:'M',
+        help:'WEDGE → bearing; CIRCLE → radius; ZONE2 → "AZIMUTH" label' },
+      { name:'param2', spec:'1-10X', flag:'O',
+        help:'WEDGE → range; ZONE2 → azimuth value' },
+      { name:'param3', spec:'1-10X', flag:'O',
+        help:'ZONE2 → "DIST" label' },
+      { name:'param4', spec:'1-10X', flag:'O',
+        help:'ZONE2 → DIST value (e.g., 45KM)' },
+      { name:'param5', spec:'1-10X', flag:'O' }
     ]
   },
 
@@ -1381,10 +1409,18 @@ App.SetDefsUSAF = {
 };
 
 /* USAF per-report set membership.
-   M = mandatory; O = optional. v1 covers CBRN 3 CHEM only. */
+   M = mandatory; O = optional. v1 covers CBRN 3 CHEM and CBRN 3 NUC. */
 App.ReportTypesUSAF = {
   CBRN3_CHEM_USAF: {
     label:'CBRN 3 CHEM (USAF) — predicted hazard warning',
+    sets: [
+      ['MSGID','M'], ['ALFA','M'], ['DELTA','M'], ['FOXTROT','M'],
+      ['GOLF','O'],  ['HOTEL','O'], ['PA','M'],   ['PB','M'],
+      ['ZULU','O']
+    ]
+  },
+  CBRN3_NUC_USAF: {
+    label:'CBRN 3 NUC (USAF) — predicted hazard warning',
     sets: [
       ['MSGID','M'], ['ALFA','M'], ['DELTA','M'], ['FOXTROT','M'],
       ['GOLF','O'],  ['HOTEL','O'], ['PA','M'],   ['PB','M'],
@@ -2127,11 +2163,17 @@ App.Module1 = (function(){
   function guessReportType(toks){
     const present = new Set(toks.map(t=>t.setName));
     // USAF format is identified unambiguously by MSGID and/or PA/PB.
-    // Those sets don't appear in AFTTP/ATP45E so a single signal is
-    // enough — return the USAF report type even when the user is on a
-    // non-USAF standard so "Load into editor" can prompt a switch.
+    // CHEM vs NUC discriminator: MSGID field 0 ("CBRN 3 NUC" vs
+    // "CBRN 3 CHEM") or, as a fallback, the PA/PB shape codes.
     if (present.has('MSGID') || present.has('PA') || present.has('PB')){
-      return 'CBRN3_CHEM_USAF';
+      const msg = toks.find(t => t.setName === 'MSGID');
+      const kind = (msg && msg.fields[0] || '').toUpperCase();
+      const pa   = toks.find(t => t.setName === 'PA');
+      const pb   = toks.find(t => t.setName === 'PB');
+      const paSh = (pa && pa.fields[0] || '').toUpperCase();
+      const pbSh = (pb && pb.fields[0] || '').toUpperCase();
+      const isNuc = /NUC/.test(kind) || paSh === 'ZONE1' || pbSh === 'ZONE2';
+      return isNuc ? 'CBRN3_NUC_USAF' : 'CBRN3_CHEM_USAF';
     }
     let best = null, bestScore = -1;
     for (const [id, def] of Object.entries(activeReportTypes())){
@@ -2154,12 +2196,13 @@ App.Module1 = (function(){
   function loadParsedIntoEditor(){
     if (!parseLastDecoded || !parseLastDecoded.typeGuess) return;
     const t = parseLastDecoded.typeGuess;
-    // If the parsed report is USAF but the active standard isn't, switch
-    // first so the dropdown rebuild (driven by Standard.subscribe) exposes
-    // the USAF option BEFORE we try to select it.
-    if (t === 'CBRN3_CHEM_USAF' && App.Standard.getKey() !== 'USAF'){
+    // If the parsed report is a USAF type but the active standard isn't,
+    // switch first so the dropdown rebuild (via Standard.subscribe)
+    // exposes the USAF options BEFORE we try to select one.
+    const isUsafType = /^CBRN3_(CHEM|NUC)_USAF$/.test(t);
+    if (isUsafType && App.Standard.getKey() !== 'USAF'){
       App.Standard.set('USAF');
-    } else if (t !== 'CBRN3_CHEM_USAF' && App.Standard.getKey() === 'USAF'){
+    } else if (!isUsafType && App.Standard.getKey() === 'USAF'){
       App.Standard.set('AFTTP');
     }
     state.reportType = t;
@@ -2243,7 +2286,7 @@ App.Module1 = (function(){
   function stateFromScenario(sc){
     if (!sc || !sc.reportType) throw new Error('bad scenario');
     // Auto-switch standard if the scenario is USAF (or back).
-    const isUsaf = sc.reportType === 'CBRN3_CHEM_USAF';
+    const isUsaf = /^CBRN3_(CHEM|NUC)_USAF$/.test(sc.reportType);
     if (isUsaf && App.Standard.getKey() !== 'USAF') App.Standard.set('USAF');
     else if (!isUsaf && App.Standard.getKey() === 'USAF') App.Standard.set('AFTTP');
     if (!activeReportTypes()[sc.reportType]) throw new Error('bad scenario');
@@ -2322,6 +2365,21 @@ App.Module1 = (function(){
           PA:     [{fields:['CIRCLE','1KM']}],
           PB:     [{fields:['WEDGE','090','10KM']}],
           ZULU:   [{fields:['261400ZMAY26']}]
+        }
+      });
+    } else if (state.reportType === 'CBRN3_NUC_USAF'){
+      // The USAF NUC training-example message — Zone 1 + Zone 2 fallout.
+      stateFromScenario({
+        reportType:'CBRN3_NUC_USAF',
+        sets:{
+          MSGID:  [{fields:['CBRN 3 NUC','CBRN CONTROL CENTER']}],
+          ALFA:   [{fields:['US','A','NU-002-26']}],
+          DELTA:  [{fields:['262100ZMAY26']}],
+          FOXTROT:[{fields:['ACTUAL','BC456789']}],
+          GOLF:   [{fields:['SURF','50KT']}],
+          PA:     [{fields:['ZONE1','RAD','12KM']}],
+          PB:     [{fields:['ZONE2','AZIMUTH','135','DIST','45KM']}],
+          ZULU:   [{fields:['262145ZMAY26']}]
         }
       });
     }
@@ -4001,11 +4059,33 @@ App.Plotting = (function(){
     const n = parseFloat(s);
     return isFinite(n) ? n : null;
   }
+  // Labeled-parameter form parser: USAF NUC PA/PB sets use repeating
+  // (LABEL, VALUE) pairs after the shape, e.g. ['ZONE1','RAD','12KM']
+  // or ['ZONE2','AZIMUTH','135','DIST','45KM']. Returns an object
+  // keyed by uppercased LABEL → value. Quietly ignores trailing
+  // unpaired entries and '-' placeholders.
+  function asLabeledPairs(fields){
+    const out = {};
+    if (!fields) return out;
+    for (let i = 1; i + 1 < fields.length; i += 2){
+      const k = String(fields[i] || '').trim().toUpperCase();
+      const v = fields[i+1];
+      if (!k || k === '-') continue;
+      if (v == null || v === '-') continue;
+      out[k] = v;
+    }
+    return out;
+  }
+
   function computeFromUsaf(inp){
     const errors = [];
     const warnings = [];
     const pa = inp.pa || {};
     const pb = inp.pb || {};
+    // Trailing '-' placeholders are stripped so labeled-pair iteration
+    // doesn't drift on optional empties.
+    const paFields = (pa.fields || [pa.shape, pa.param1, pa.param2]).filter(f => f != null && f !== '');
+    const pbFields = (pb.fields || [pb.shape, pb.param1, pb.param2]).filter(f => f != null && f !== '');
 
     // Attack-area radius (km). CIRCLE only in v1; RECT/POINT/LINE
     // fall through as best-effort with a warning.
@@ -4013,6 +4093,15 @@ App.Plotting = (function(){
     if (pa.shape === 'CIRCLE'){
       attackR = parseKmDim(pa.radiusKm != null ? pa.radiusKm : pa.param1);
       if (attackR == null) errors.push('PA CIRCLE: cannot parse radius "'+pa.param1+'"');
+    } else if (pa.shape === 'ZONE1'){
+      // Nuclear Zone 1 — labeled-parameter form: RAD = radius.
+      const labels = asLabeledPairs(paFields);
+      const radRaw = labels.RAD != null ? labels.RAD : labels.RADIUS;
+      attackR = parseKmDim(radRaw);
+      if (attackR == null){
+        errors.push('PA ZONE1: cannot parse RAD value "'+radRaw+'" '+
+          '(expected PA/ZONE1/RAD/<km>//)');
+      }
     } else if (pa.shape === 'POINT'){
       attackR = 0;
     } else if (pa.shape === 'RECT'){
@@ -4029,7 +4118,8 @@ App.Plotting = (function(){
       errors.push('PA shape missing');
     }
 
-    // Hazard area: WEDGE (bearing + range) or CIRCLE (radius).
+    // Hazard area: WEDGE (bearing + range), CIRCLE (radius), ZONE2
+    // (NUC fallout: AZIMUTH + DIST), or NONE (release-only plot).
     let hazardShape = null, hazardR = null, bearingDeg = null;
     if (pb.shape === 'WEDGE'){
       bearingDeg = parseFloat(pb.bearingDeg != null ? pb.bearingDeg : pb.param1);
@@ -4041,6 +4131,22 @@ App.Plotting = (function(){
       hazardR = parseKmDim(pb.radiusKm != null ? pb.radiusKm : pb.param1);
       if (hazardR == null) errors.push('PB CIRCLE: cannot parse radius "'+pb.param1+'"');
       hazardShape = 'circle';
+    } else if (pb.shape === 'ZONE2'){
+      // Nuclear Zone 2 — labeled-parameter form: AZIMUTH + DIST.
+      const labels = asLabeledPairs(pbFields);
+      const azRaw   = labels.AZIMUTH != null ? labels.AZIMUTH : labels.AZ;
+      const distRaw = labels.DIST    != null ? labels.DIST    : labels.RANGE;
+      bearingDeg = parseFloat(azRaw);
+      hazardR    = parseKmDim(distRaw);
+      if (!isFinite(bearingDeg)) errors.push('PB ZONE2: cannot parse AZIMUTH "'+azRaw+'" '+
+        '(expected PB/ZONE2/AZIMUTH/<deg>/DIST/<km>//)');
+      if (hazardR == null)       errors.push('PB ZONE2: cannot parse DIST "'+distRaw+'"');
+      hazardShape = 'zone2';
+    } else if (pb.shape === 'NONE'){
+      // Explicit "no separate hazard area" — the release area defined
+      // by PA stands on its own (typical for surface chemical releases
+      // with insignificant downwind hazard).
+      hazardShape = 'none';
     } else if (pb.shape){
       warnings.push('PB shape "'+pb.shape+'" not implemented [UNVERIFIED]');
     } else {
@@ -4049,17 +4155,27 @@ App.Plotting = (function(){
 
     // Build a virtual Type/Case label so the renderer's title block
     // and annotation engine can reuse existing wedge/circle code paths.
-    // Type "U" (USAF direct geometry) Case 1 = concentric circles,
-    // Case 2 = wedge. Both are pure-rendering categories — there's no
-    // doctrinal determination behind them.
-    const usafCase = (hazardShape === 'wedge') ? 2 : 1;
+    // Type "U" (USAF direct geometry):
+    //   Case 1 — concentric circles (PA CIRCLE + PB CIRCLE)
+    //   Case 2 — wedge              (PA CIRCLE + PB WEDGE)
+    //   Case 3 — release-only       (PA CIRCLE + PB NONE)
+    //   Case 4 — NUC zones          (PA ZONE1   + PB ZONE2)
+    // These are pure-rendering categories — there's no doctrinal
+    // determination behind them.
+    let usafCase = 1;
+    if (hazardShape === 'wedge') usafCase = 2;
+    else if (hazardShape === 'none')  usafCase = 3;
+    else if (hazardShape === 'zone2') usafCase = 4;
+    const reportFamily = (hazardShape === 'zone2' || pa.shape === 'ZONE1') ? 'NUC' : 'CHEM';
     const determination = {
       type: 'U', caseNum: usafCase,
       attackRadiusKm: attackR || 0,
       hazardRadiusKm: (hazardShape === 'circle') ? hazardR : null,
       dhdSource: 'usaf-message-supplied',
       warnings: [],
-      citation: 'USAF CBRN 3 CHEM PA/PB direct geometry [UNVERIFIED]'
+      citation: 'USAF CBRN 3 '+reportFamily+' PA/PB direct geometry [UNVERIFIED]'+
+        (hazardShape === 'none'  ? ' — release-only plot (PB NONE)' : '')+
+        (hazardShape === 'zone2' ? ' — Zone 1 + Zone 2 fallout (PB ZONE2)' : '')
     };
     const dimensions = {
       type: 'U', caseNum: usafCase,
@@ -4067,7 +4183,7 @@ App.Plotting = (function(){
       hazardRangeKm: hazardR,
       downwindDirDeg: bearingDeg,
       upwindKm: (hazardShape === 'wedge' && attackR != null) ? 2 * attackR : null,
-      halfAngleDeg: (hazardShape === 'wedge') ? 30 : null
+      halfAngleDeg: (hazardShape === 'wedge' || hazardShape === 'zone2') ? 30 : null
     };
 
     let geometry;
@@ -4077,15 +4193,90 @@ App.Plotting = (function(){
       geometry = concentric(inp.primaryLabel, attackR, hazardR);
     } else if (hazardShape === 'wedge'){
       geometry = singleWedge(inp.primaryLabel, attackR, bearingDeg, hazardR);
+    } else if (hazardShape === 'zone2'){
+      // Nuclear Zone 1 (PA radius) + Zone 2 fallout wedge from GZ
+      // extending DIST km in the AZIMUTH bearing. The wedge has an
+      // apex at GZ (no upwind extension — fallout originates AT the
+      // burst) and a doctrinal-style 30° half-angle (UNVERIFIED).
+      const halfAng = 30;
+      const d  = azimuthToVec(bearingDeg);
+      const dP = azimuthToVec(bearingDeg + halfAng);
+      const dM = azimuthToVec(bearingDeg - halfAng);
+      const t  = hazardR / Math.cos(halfAng * Math.PI/180);
+      const U  = { x: 0, y: 0 };
+      const A  = { x: t * dP.x, y: t * dP.y };
+      const B  = { x: t * dM.x, y: t * dM.y };
+      const zone1R = attackR > 0 ? attackR : 1;
+      const perpL = { x: -d.y, y: d.x };
+      geometry = {
+        shapes: [
+          { kind:'wedge', U, A, B, axisDeg:bearingDeg, halfAngleDeg:halfAng,
+            attackR:zone1R, upwindKm:0, dhdKm:hazardR,
+            role:'hazard', label:'Zone 2 fallout to '+hazardR+' km' },
+          { kind:'circle', cx:0, cy:0, r:zone1R, role:'attack',
+            label:'Zone 1 r='+zone1R+' km' },
+          { kind:'arrow-axis', from:{x:0,y:0}, to:{ x: d.x*hazardR, y: d.y*hazardR },
+            axisDeg: bearingDeg,
+            label:'Downwind '+Math.round(bearingDeg)+'°' },
+          { kind:'point', cx:0, cy:0, label: inp.primaryLabel || 'GZ' }
+        ],
+        extentKm: Math.max(Math.hypot(A.x,A.y), Math.hypot(B.x,B.y), zone1R) * 1.15,
+        annotations: [
+          { kind:'frame' },
+          { kind:'dim-arrow',
+            from:{x:0,y:0},
+            to:{ x: perpL.x*zone1R, y: perpL.y*zone1R },
+            label: zone1R+' km', side:'below' },
+          { kind:'dim-arrow',
+            from:{x:0,y:0},
+            to:{ x: d.x*hazardR, y: d.y*hazardR },
+            label: hazardR+' km', side:'right' },
+          { kind:'angle-arc', at:U, fromDeg: bearingDeg,
+            toDeg: bearingDeg + halfAng, r: Math.max(1, zone1R*0.3),
+            label: halfAng+'°' },
+          { kind:'angle-arc', at:U, fromDeg: bearingDeg - halfAng,
+            toDeg: bearingDeg, r: Math.max(1, zone1R*0.3),
+            label: halfAng+'°' },
+          { kind:'region-label',
+            at:{ x: d.x*hazardR*0.55, y: d.y*hazardR*0.55 },
+            text:'Zone 2 (fallout)' },
+          { kind:'region-label',
+            at:{ x: -d.x*(zone1R+1), y: -d.y*(zone1R+1) },
+            text:'Zone 1', leaderTo:{ x: -d.x*zone1R*0.5, y: -d.y*zone1R*0.5 } }
+        ]
+      };
+    } else if (hazardShape === 'none'){
+      // Release-area-only plot. Build the geometry and the annotations
+      // inline so addAnnotations() (which always expects a hazard area
+      // for caseNum 1/2/3) doesn't paint "Hazard Area" labels and a
+      // null-radius arrow over an attack-only plot.
+      const r = attackR > 0 ? attackR : 1;
+      geometry = {
+        shapes: [
+          { kind:'circle', cx:0, cy:0, r:r, role:'attack',
+            label:'Release area r='+r+' km' },
+          { kind:'point',  cx:0, cy:0, label: inp.primaryLabel || 'release center' }
+        ],
+        extentKm: r * 1.6,
+        annotations: [
+          { kind:'frame' },
+          { kind:'dim-arrow', from:{x:0,y:0}, to:{x:-r, y:0},
+            label: r+' km', side:'below' },
+          { kind:'region-label', at:{x: r*0.8, y: r*0.8},
+            text:'Release Area', leaderTo:{x: r*0.35, y: r*0.35} }
+        ]
+      };
     } else {
       geometry = { shapes:[], extentKm:5 };
     }
 
-    // Reuse the existing annotation engine. addAnnotations() recognises
-    // caseNum 1 (concentric) and caseNum 2 (wedge) — the Type letter is
-    // only used by the Type C / D special-case branches, so passing
-    // type='U' falls through to the generic concentric/wedge labelling.
-    geometry.annotations = addAnnotations(geometry, determination, dimensions);
+    // Reuse the existing annotation engine ONLY for cases where this
+    // function didn't already supply annotations. (NONE / release-only
+    // builds its own; concentric and wedge cases delegate to
+    // addAnnotations().)
+    if (!geometry.annotations){
+      geometry.annotations = addAnnotations(geometry, determination, dimensions);
+    }
 
     return {
       determination, geometry, dimensions,
@@ -4414,9 +4605,9 @@ App.Module3 = (function(){
   // { ok:false, error } when the state can't be coerced.
   function gatherUsafInputs(){
     const st = App.Module1._state;
-    if (st.reportType !== 'CBRN3_CHEM_USAF'){
+    if (!/^CBRN3_(CHEM|NUC)_USAF$/.test(st.reportType)){
       return { ok:false, error:'Module 1 is on '+st.reportType+
-        '; USAF plotting needs CBRN3_CHEM_USAF.' };
+        '; USAF plotting needs CBRN3_CHEM_USAF or CBRN3_NUC_USAF.' };
     }
     const sets = st.sets || {};
     function getField(setName, idx){
@@ -4424,13 +4615,23 @@ App.Module3 = (function(){
       const v = occ && occ.fields && occ.fields[idx];
       return (v && v !== '-') ? v : null;
     }
+    function getAllFields(setName){
+      const occ = sets[setName] && sets[setName][0];
+      return (occ && occ.fields) ? occ.fields.slice() : [];
+    }
     const paShape = (getField('PA', 0) || '').toUpperCase();
     const pbShape = (getField('PB', 0) || '').toUpperCase();
     if (!paShape) return { ok:false, error:'USAF: PA set missing' };
     if (!pbShape) return { ok:false, error:'USAF: PB set missing' };
     return { ok:true, inp:{
-      pa: { shape:paShape, param1:getField('PA',1), param2:getField('PA',2) },
-      pb: { shape:pbShape, param1:getField('PB',1), param2:getField('PB',2) },
+      // `fields` carries every field of the set so computeFromUsaf can
+      // walk labeled-parameter forms (ZONE1/RAD/<km>, ZONE2/AZIMUTH/<deg>/DIST/<km>).
+      pa: { shape:paShape,
+            fields:[paShape].concat(getAllFields('PA').slice(1)),
+            param1:getField('PA',1), param2:getField('PA',2) },
+      pb: { shape:pbShape,
+            fields:[pbShape].concat(getAllFields('PB').slice(1)),
+            param1:getField('PB',1), param2:getField('PB',2) },
       msgKind:    getField('MSGID',0),
       agent:      getField('HOTEL',0),
       dtgAttack:  getField('DELTA',0),
@@ -4445,7 +4646,7 @@ App.Module3 = (function(){
     const usingMod1 = document.getElementById('plotSource').value === 'mod1';
     const usaf = (usingMod1 &&
       App.Standard.get().hasUsafGeom &&
-      App.Module1._state.reportType === 'CBRN3_CHEM_USAF');
+      /^CBRN3_(CHEM|NUC)_USAF$/.test(App.Module1._state.reportType));
     if (usaf){
       const g = gatherUsafInputs();
       if (!g.ok){
@@ -4697,7 +4898,7 @@ App.Module3 = (function(){
       const t = m1.reportType;
       const stdCfg = App.Standard.get();
       const isAfttpType = (t === 'NBC2_CHEM' || t === 'NBC3_CHEM');
-      const isUsafType  = (t === 'CBRN3_CHEM_USAF' && stdCfg.hasUsafGeom);
+      const isUsafType  = /^CBRN3_(CHEM|NUC)_USAF$/.test(t) && stdCfg.hasUsafGeom;
       const prefix = 'Reading from Module 1 (current report type: <strong>'+
                      escHTML(t)+'</strong>). ';
       let msg;
@@ -4707,9 +4908,9 @@ App.Module3 = (function(){
       } else if (isAfttpType){
         msg = 'NBC2 and NBC3 CHEM are both accepted.';
       } else if (stdCfg.hasUsafGeom){
-        // USAF standard active but Module 1 isn't on the USAF report type.
+        // USAF standard active but Module 1 isn't on a USAF report type.
         msg = '<span style="color:var(--err)">Switch Module 1 to CBRN 3 CHEM '+
-              '(USAF) before computing.</span>';
+              'or CBRN 3 NUC (USAF) before computing.</span>';
       } else {
         msg = '<span style="color:var(--err)">Switch Module 1 to NBC2 CHEM '+
               'or NBC3 CHEM before computing.</span>';
@@ -5725,6 +5926,50 @@ App.Tests = (function(){
     assert(circles.some(c => c.role === 'attack' && c.r === 1));
     assert(circles.some(c => c.role === 'hazard' && c.r === 3));
   });
+  add('USAF plot: PA CIRCLE 5KM / PB NONE → release-only plot (no hazard)', ()=>{
+    // Regression: previously PB NONE landed in the "not implemented"
+    // warning branch, leaving geometry empty AND addAnnotations()
+    // painted concentric "Hazard Area" labels + a null-radius arrow
+    // over an attack-only plot.
+    const r = App.Plotting.computeFromUsaf({
+      pa: { shape:'CIRCLE', param1:'5KM' },
+      pb: { shape:'NONE' }
+    });
+    eq(r.errors.length, 0, 'errors: '+JSON.stringify(r.errors));
+    eq(r.determination.type, 'U');
+    eq(r.determination.caseNum, 3);              // case 3 = release-only
+    eq(r.dimensions.attackRadiusKm, 5);
+    eq(r.dimensions.hazardRangeKm, null);
+    // Geometry: one attack circle (r=5), no hazard shapes anywhere.
+    const circles = r.geometry.shapes.filter(s => s.kind === 'circle');
+    eq(circles.length, 1);
+    eq(circles[0].r, 5);
+    eq(circles[0].role, 'attack');
+    assert(!r.geometry.shapes.some(s => s.kind === 'wedge'),
+      'no wedge expected for release-only plot');
+    assert(!r.geometry.shapes.some(s => s.role === 'hazard'),
+      'no hazard role expected for release-only plot');
+    // Annotations: a single 5 km radius arrow, "Release Area" label,
+    // and no "Hazard Area" labels.
+    const anns   = r.geometry.annotations || [];
+    const dim    = anns.filter(a => a.kind === 'dim-arrow');
+    const labels = anns.filter(a => a.kind === 'region-label').map(a => a.text);
+    eq(dim.length, 1);
+    eq(dim[0].label, '5 km');
+    assert(labels.includes('Release Area'));
+    assert(!labels.some(l => /Hazard/.test(l)),
+      'release-only plot must NOT show Hazard Area labels; got: '+JSON.stringify(labels));
+  });
+  add('USAF parse: GOLF MORT decodes as Mortar without UNVERIFIED', ()=>{
+    // Sister fix: training samples use MORT (not MOR) for mortar.
+    App.Standard.set('USAF');
+    try {
+      const d = App.Decoder.decodeFieldValue('MORT', App.SetDefsUSAF.GOLF.fields[0]);
+      eq(d.decodedLabel, 'Mortar');
+      eq(d.unverified, false, 'MORT must not be flagged UNVERIFIED');
+    } finally { App.Standard.set('AFTTP'); }
+  });
+
   add('USAF plot: missing PA shape → specific error (fail-loud)', ()=>{
     const r = App.Plotting.computeFromUsaf({ pb: { shape:'CIRCLE', param1:'3KM' } });
     assert(r.errors.some(e => /PA shape missing/.test(e)),
@@ -5737,6 +5982,140 @@ App.Tests = (function(){
     });
     assert(r.errors.some(e => /WEDGE.*bearing/.test(e)),
       'expected bearing parse error; got: '+JSON.stringify(r.errors));
+  });
+
+  /* ============================================================
+     USAF CBRN 3 NUC — labeled-parameter PA/PB, Zone 1 + Zone 2.
+     Build target message:
+       MSGID/CBRN 3 NUC/CBRN CONTROL CENTER//
+       ALFA/US/A/NU-002-26//
+       DELTA/262100ZMAY26//
+       FOXTROT/ACTUAL/BC456789//
+       GOLF/SURF/50KT//
+       PA/ZONE1/RAD/12KM//
+       PB/ZONE2/AZIMUTH/135/DIST/45KM//
+       ZULU/262145ZMAY26//
+     ============================================================ */
+  const USAF_NUC_SAMPLE =
+    'MSGID/CBRN 3 NUC/CBRN CONTROL CENTER//\n'+
+    'ALFA/US/A/NU-002-26//\n'+
+    'DELTA/262100ZMAY26//\n'+
+    'FOXTROT/ACTUAL/BC456789//\n'+
+    'GOLF/SURF/50KT//\n'+
+    'PA/ZONE1/RAD/12KM//\n'+
+    'PB/ZONE2/AZIMUTH/135/DIST/45KM//\n'+
+    'ZULU/262145ZMAY26//';
+
+  add('USAF NUC: tokenizer round-trips the full NUC sample message', ()=>{
+    const toks = App.Tokenizer.tokenize(USAF_NUC_SAMPLE);
+    eq(toks.length, 8);
+    deepEq(toks.map(t=>t.setName),
+      ['MSGID','ALFA','DELTA','FOXTROT','GOLF','PA','PB','ZULU']);
+    eq(toks.map(App.Formatter.formatSet).join('\n'), USAF_NUC_SAMPLE);
+  });
+  add('USAF NUC: CBRN3_NUC_USAF report type exists with same set list', ()=>{
+    const rt = App.ReportTypesUSAF.CBRN3_NUC_USAF;
+    assert(rt, 'CBRN3_NUC_USAF defined');
+    const mset = rt.sets.filter(([,f]) => f === 'M').map(([n]) => n);
+    ['MSGID','ALFA','DELTA','FOXTROT','PA','PB'].forEach(n =>
+      assert(mset.includes(n), n+' should be mandatory'));
+  });
+  add('USAF NUC: GOLF SURF/50KT parses cleanly under USAF (yield widened)', ()=>{
+    App.Standard.set('USAF');
+    try {
+      const tok = App.Tokenizer.tokenize('GOLF/SURF/50KT//')[0];
+      const d   = App.Decoder.decodeSet(tok);
+      // Previously '50KT' failed 1-4N validation; widened to 1-10AN.
+      eq(d.errors.length, 0, 'GOLF/SURF/50KT must validate; got: '+JSON.stringify(d.errors));
+      eq(d.decoded[0].raw, 'SURF');
+      eq(d.decoded[1].raw, '50KT');
+    } finally { App.Standard.set('AFTTP'); }
+  });
+  add('USAF NUC: PA ZONE1 + PB ZONE2 → Zone 1 circle + Zone 2 wedge', ()=>{
+    const r = App.Plotting.computeFromUsaf({
+      pa: { shape:'ZONE1', fields:['ZONE1','RAD','12KM'] },
+      pb: { shape:'ZONE2', fields:['ZONE2','AZIMUTH','135','DIST','45KM'] },
+      primaryLabel:'BC456789'
+    });
+    eq(r.errors.length, 0, 'errors: '+JSON.stringify(r.errors));
+    eq(r.determination.type, 'U');
+    eq(r.determination.caseNum, 4);              // case 4 = NUC zones
+    eq(r.dimensions.attackRadiusKm, 12);
+    eq(r.dimensions.hazardRangeKm, 45);
+    eq(r.dimensions.downwindDirDeg, 135);
+    eq(r.dimensions.halfAngleDeg, 30);
+    // upwindKm is null for Zone 2 (fallout originates at GZ, no upwind).
+    eq(r.dimensions.upwindKm, null);
+    // Geometry: a Zone 2 wedge (apex at GZ) + Zone 1 attack circle.
+    const wedge  = r.geometry.shapes.find(s => s.kind === 'wedge');
+    const circle = r.geometry.shapes.find(s => s.kind === 'circle' && s.role === 'attack');
+    assert(wedge, 'Zone 2 wedge shape');
+    eq(wedge.U.x, 0); eq(wedge.U.y, 0);          // apex at GZ
+    eq(wedge.dhdKm, 45);
+    eq(wedge.axisDeg, 135);
+    assert(circle, 'Zone 1 attack circle');
+    eq(circle.r, 12);
+    // Annotations: a 12 km radius arrow + a 45 km downwind arrow + the
+    // two 30° half-angle arcs + "Zone 1" and "Zone 2 (fallout)" labels.
+    const anns = r.geometry.annotations || [];
+    const dims  = anns.filter(a => a.kind === 'dim-arrow').map(a => a.label);
+    const arcs  = anns.filter(a => a.kind === 'angle-arc');
+    const texts = anns.filter(a => a.kind === 'region-label').map(a => a.text);
+    assert(dims.includes('12 km'), 'Zone 1 radius arrow expected');
+    assert(dims.includes('45 km'), 'Zone 2 distance arrow expected');
+    eq(arcs.length, 2);
+    assert(texts.includes('Zone 1'));
+    assert(texts.includes('Zone 2 (fallout)'));
+    // No CHEM-style "Attack Area" / "Hazard Area" labels.
+    assert(!texts.includes('Attack Area'),
+      'NUC plot must not show "Attack Area" label; got: '+JSON.stringify(texts));
+    assert(!texts.includes('Hazard Area'),
+      'NUC plot must not show "Hazard Area" label; got: '+JSON.stringify(texts));
+  });
+  add('USAF NUC: ZONE1 with no RAD label → fail-loud', ()=>{
+    const r = App.Plotting.computeFromUsaf({
+      pa: { shape:'ZONE1', fields:['ZONE1'] },
+      pb: { shape:'ZONE2', fields:['ZONE2','AZIMUTH','90','DIST','10KM'] }
+    });
+    assert(r.errors.some(e => /ZONE1.*RAD/.test(e)),
+      'expected ZONE1 RAD parse error; got: '+JSON.stringify(r.errors));
+  });
+  add('USAF NUC: guessReportType picks NUC when MSGID says NUC', ()=>{
+    const toks = App.Tokenizer.tokenize(USAF_NUC_SAMPLE);
+    // Discriminator: MSGID kind contains "NUC", and PA/PB use ZONE1/ZONE2.
+    const msg = toks.find(t => t.setName === 'MSGID');
+    assert(/NUC/.test((msg.fields[0]||'').toUpperCase()));
+    const pa  = toks.find(t => t.setName === 'PA');
+    eq((pa.fields[0]||'').toUpperCase(), 'ZONE1');
+  });
+  add('USAF NUC e2e: full sample → loaded into state → plot', ()=>{
+    App.Standard.set('USAF');
+    try {
+      const toks = App.Tokenizer.tokenize(USAF_NUC_SAMPLE);
+      function field(setName, idx){
+        const t = toks.find(t=>t.setName===setName);
+        const v = t && t.fields[idx];
+        return (v && v !== '-') ? v : null;
+      }
+      function allFields(setName){
+        const t = toks.find(t=>t.setName===setName);
+        return t ? t.fields.slice() : [];
+      }
+      const inp = {
+        pa: { shape:field('PA',0), fields:allFields('PA') },
+        pb: { shape:field('PB',0), fields:allFields('PB') },
+        primaryLabel: field('FOXTROT',1)
+      };
+      const r = App.Plotting.computeFromUsaf(inp);
+      eq(r.errors.length, 0, 'errors: '+JSON.stringify(r.errors));
+      eq(r.dimensions.attackRadiusKm, 12);
+      eq(r.dimensions.hazardRangeKm, 45);
+      eq(r.dimensions.downwindDirDeg, 135);
+      const c = document.createElement('canvas');
+      c.clientWidth = 400; c.clientHeight = 400;
+      App.Plotting.render(c, r, { zoom:1 });
+      assert(c.width > 0);
+    } finally { App.Standard.set('AFTTP'); }
   });
 
   add('USAF: Module 3 source-status accepts CBRN3_CHEM_USAF (regression)', ()=>{
