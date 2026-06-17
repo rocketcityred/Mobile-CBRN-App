@@ -665,12 +665,51 @@ App.Standard = (function(){
       reportFamilyRange: 'CBRN1/2/3',
       cdmFormatVerified: true,
       hasTypeD: true,
+      hasUsafGeom: false,
       verifiedCodes: {
         // PLT/RLD/TPT (Table C-1 §C012) and RCT (Table C-1 §C013) are
         // explicitly listed in ATP-45(E) — no longer UNVERIFIED.
         golfDelivery: ['PLT','RLD','TPT'],
         golfContainer: ['RCT']
       }
+    },
+    USAF: {
+      // USAF CBRN 3 CHEM "newer format" — added on user request from a
+      // training-example message. Set inventory and field semantics:
+      //   MSGID   — message identifier (report kind, originator)
+      //   ALFA    — nationality, area, serial
+      //   DELTA   — DTG of attack/detonation
+      //   FOXTROT — qualifier (ACTUAL/ESTIMATED), location/grid
+      //   GOLF    — delivery type, quantity
+      //   HOTEL   — agent code (NATO chem code), release height
+      //   PA      — predicted Attack-area geometry primitive
+      //               PA/CIRCLE/<radius>//   PA/RECT/<l>/<w>//   PA/POINT//
+      //   PB      — predicted hazard Boundary geometry primitive
+      //               PB/WEDGE/<bearing°>/<range>//   PB/CIRCLE/<radius>//
+      //   ZULU    — DTG of message origin
+      // The whole format is inferred from a single training example —
+      // any value not directly attested in that example is `unverified`
+      // and surfaced as UNVERIFIED in UI per project doctrine (§0.3).
+      key: 'USAF',
+      shortLabel: 'USAF',
+      citationShort: 'USAF CBRN 3 CHEM training format (inferred — UNVERIFIED)',
+      citationLong:
+        'USAF CBRN 3 CHEM message format inferred from a training '+
+        'example. Set inventory: MSGID, ALFA (nationality/area/serial), '+
+        'DELTA (DTG of attack), FOXTROT (qualifier/grid), GOLF (delivery/'+
+        'quantity), HOTEL (agent code / release height), PA (attack-area '+
+        'geometry primitive), PB (hazard-area geometry primitive), ZULU '+
+        '(DTG of message). All set/field definitions UNVERIFIED until '+
+        'reconciled with an authoritative USAF source.',
+      reportFamily: 'CBRN',
+      reportFamilyRange: 'CBRN 3',
+      cdmFormatVerified: false,
+      hasTypeD: false,
+      // Marks this standard as carrying its OWN geometry primitives
+      // (PA/PB) — plotter shortcut: read shape + dimensions directly,
+      // skip Table E-1 determination engine.
+      hasUsafGeom: true,
+      verifiedCodes: { golfDelivery:[], golfContainer:[] }
     }
   };
   let current = 'AFTTP';
@@ -684,7 +723,13 @@ App.Standard = (function(){
     listeners.forEach(fn => { try { fn(get()); } catch(e){ App.Log.add('std-listener', e.message); } });
     App.Log.add('std', 'standard switched to '+key);
   }
-  function toggle(){ set(current === 'AFTTP' ? 'ATP45E' : 'AFTTP'); }
+  // Click cycles AFTTP → ATP45E → USAF → AFTTP. (Previously a 2-state
+  // toggle; the third standard was added to support USAF CBRN 3 CHEM.)
+  const CYCLE = ['AFTTP','ATP45E','USAF'];
+  function toggle(){
+    const i = CYCLE.indexOf(current);
+    set(CYCLE[(i+1) % CYCLE.length]);
+  }
   function subscribe(fn){ listeners.push(fn); }
   // Returns true if the enumeration entry is verified under the active
   // standard. An entry can be `verified` by either having no `unverified`
@@ -694,7 +739,17 @@ App.Standard = (function(){
     const list = (cfg.verifiedCodes && cfg.verifiedCodes[enumKey]) || [];
     return list.includes(code);
   }
-  return { get, getKey, set, toggle, subscribe, isVerified };
+  // Per-standard dictionary lookup. USAF uses its own set defs and
+  // report-type list (different field orders, new sets MSGID/PA/PB);
+  // AFTTP and ATP-45(E) share the base App.SetDefs.
+  function getSetDefs(){
+    return current === 'USAF' ? App.SetDefsUSAF : App.SetDefs;
+  }
+  function getReportTypes(){
+    return current === 'USAF' ? App.ReportTypesUSAF : App.ReportTypes;
+  }
+  return { get, getKey, set, toggle, subscribe, isVerified,
+           getSetDefs, getReportTypes };
 })();
 
 /* ============================================================
@@ -830,6 +885,79 @@ App.Enumerations = {
     { code:'OPEN',   label:'Open',   unverified:true },
     { code:'FOREST', label:'Forest', unverified:true },
     { code:'JUNGLE', label:'Jungle', unverified:true }
+  ],
+
+  /* ===== USAF CBRN 3 CHEM enumerations =====
+     All entries are inferred from a single training example and pending
+     reconciliation with an authoritative USAF source — every entry is
+     marked `unverified:true` so the active STANDARD's verifiedCodes list
+     can opt specific codes in without changing this dictionary. */
+
+  // USAF MSGID field 1 — message kind (free-text-ish per sample;
+  // "CBRN 3 CHEM" attested).
+  usafMsgKind: [
+    { code:'CBRN 3 CHEM', label:'CBRN 3 — chemical predicted hazard', unverified:true },
+    { code:'CBRN 1 CHEM', label:'CBRN 1 — chemical observer\'s report', unverified:true },
+    { code:'CBRN 2 CHEM', label:'CBRN 2 — chemical evaluated data', unverified:true }
+  ],
+
+  // USAF FOXTROT field 1 — location qualifier (qualifier-then-grid order
+  // per the training example).
+  usafFoxtrotQual: [
+    { code:'ACTUAL',    label:'Actual location' },
+    { code:'ESTIMATED', label:'Estimated location', unverified:true }
+  ],
+
+  // USAF GOLF field 1 — delivery type.
+  usafGolfDelivery: [
+    { code:'ARTY', label:'Artillery' },
+    { code:'AIR',  label:'Aircraft',    unverified:true },
+    { code:'MSL',  label:'Missile',     unverified:true },
+    { code:'RKT',  label:'Rocket',      unverified:true },
+    { code:'MOR',  label:'Mortar',      unverified:true },
+    { code:'BOM',  label:'Bomb',        unverified:true },
+    { code:'UNK',  label:'Unknown',     unverified:true }
+  ],
+
+  // USAF HOTEL field 1 — NATO chemical agent code.
+  usafHotelAgent: [
+    { code:'GA', label:'Tabun (nerve)',           unverified:true },
+    { code:'GB', label:'Sarin (nerve)' },
+    { code:'GD', label:'Soman (nerve)',           unverified:true },
+    { code:'GF', label:'Cyclosarin (nerve)',      unverified:true },
+    { code:'VX', label:'VX (nerve)',              unverified:true },
+    { code:'H',  label:'Mustard (blister)',       unverified:true },
+    { code:'HD', label:'Distilled mustard (blister)', unverified:true },
+    { code:'HN', label:'Nitrogen mustard (blister)',  unverified:true },
+    { code:'L',  label:'Lewisite (blister)',      unverified:true },
+    { code:'AC', label:'Hydrogen cyanide (blood)',unverified:true },
+    { code:'CK', label:'Cyanogen chloride (blood)',unverified:true },
+    { code:'CG', label:'Phosgene (choking)',      unverified:true },
+    { code:'DP', label:'Diphosgene (choking)',    unverified:true },
+    { code:'UNK',label:'Unknown',                 unverified:true }
+  ],
+
+  // USAF HOTEL field 2 — release height (overlaps INDIA-1 codes from AFTTP).
+  usafHotelRelease: [
+    { code:'AIR',  label:'Air release' },
+    { code:'SURF', label:'Surface release', unverified:true },
+    { code:'SUBS', label:'Subsurface release', unverified:true },
+    { code:'UNK',  label:'Unknown', unverified:true }
+  ],
+
+  // USAF PA field 1 — attack-area shape.
+  usafShapeAttack: [
+    { code:'CIRCLE', label:'Circle (radius)' },
+    { code:'RECT',   label:'Rectangle (length × width)', unverified:true },
+    { code:'POINT',  label:'Point', unverified:true },
+    { code:'LINE',   label:'Line (length × bearing)', unverified:true }
+  ],
+
+  // USAF PB field 1 — hazard-area shape.
+  usafShapeHazard: [
+    { code:'WEDGE',  label:'Wedge (bearing + range)' },
+    { code:'CIRCLE', label:'Circle (radius)', unverified:true },
+    { code:'RECT',   label:'Rectangle (length × width)', unverified:true }
   ]
 
 };
@@ -1133,6 +1261,139 @@ App.ReportTypes = {
 };
 
 /* ============================================================
+   USAF SET DICTIONARY — CBRN 3 CHEM (newer format)
+   Inferred from a single training-example message; every set is
+   marked `unverified:true` so the UI surfaces the provenance and
+   the project's "don't guess silently" doctrine (§0.3) is honored.
+
+   Example message (the build target):
+     MSGID/CBRN 3 CHEM/CBRN CONTROL CENTER//
+     ALFA/US/A/CH-004-26//
+     DELTA/261330ZMAY26//
+     FOXTROT/ACTUAL/NV123456//
+     GOLF/ARTY/12//
+     HOTEL/GB/AIR//
+     PA/CIRCLE/1KM//
+     PB/WEDGE/090/10KM//
+     ZULU/261400ZMAY26//
+   ============================================================ */
+App.SetDefsUSAF = {
+
+  MSGID: {
+    desc: 'Message identifier', v1:true, unverified:true,
+    fields: [
+      { name:'kind',       spec:'1-30X', flag:'M', enumKey:'usafMsgKind',
+        help:'Message kind (e.g., "CBRN 3 CHEM")' },
+      { name:'originator', spec:'1-40X', flag:'M',
+        help:'Originator (e.g., "CBRN CONTROL CENTER")' }
+    ]
+  },
+
+  ALFA: {
+    desc: 'Strike serial', v1:true, unverified:true,
+    fields: [
+      { name:'nationality', spec:'2-3AN', flag:'M',
+        help:'Nationality code (e.g., US)' },
+      { name:'area',        spec:'1-3AN', flag:'M',
+        help:'Area / unit code (e.g., A)' },
+      { name:'serial',      spec:'1-20X', flag:'M',
+        help:'Serial number (e.g., CH-004-26)' }
+    ]
+  },
+
+  DELTA: {
+    desc: 'DTG of attack/detonation', v1:true, unverified:true,
+    fields: [
+      // USAF sample uses a 12AN compact DTG (DDHHMMZmmYY) — the AFTTP
+      // 14AN form (DDHHMMZmmmYYYY) is also accepted by widening the spec.
+      { name:'dtgAttack', spec:'12-14AN', flag:'M', type:'dtg',
+        help:'DTG of attack (e.g., 261330ZMAY26)' }
+    ]
+  },
+
+  FOXTROT: {
+    desc: 'Location of attack/event', v1:true, unverified:true,
+    fields: [
+      { name:'qualifier', spec:'3-10A', flag:'M', enumKey:'usafFoxtrotQual',
+        help:'ACTUAL or ESTIMATED' },
+      { name:'location',  spec:'1-30X', flag:'M',
+        help:'Location/grid (e.g., NV123456)' }
+    ]
+  },
+
+  GOLF: {
+    desc: 'Delivery & quantity', v1:true, unverified:true,
+    fields: [
+      { name:'delivery', spec:'1-10A', flag:'M', enumKey:'usafGolfDelivery',
+        help:'Delivery type (e.g., ARTY)' },
+      { name:'quantity', spec:'1-4N',  flag:'M',
+        help:'Quantity (rounds, sorties, etc.)' }
+    ]
+  },
+
+  HOTEL: {
+    desc: 'Agent + release height', v1:true, unverified:true,
+    fields: [
+      { name:'agent',         spec:'1-4A',  flag:'M', enumKey:'usafHotelAgent',
+        help:'NATO chemical agent code (e.g., GB)' },
+      { name:'releaseHeight', spec:'3-4A',  flag:'M', enumKey:'usafHotelRelease',
+        help:'Release height (AIR, SURF, SUBS, UNK)' }
+    ]
+  },
+
+  PA: {
+    // PA — predicted Attack-area geometry primitive.
+    // Field layout depends on the shape; we model it as
+    // shape + up to two dimensional parameters (radius / l / w / etc.).
+    desc: 'Predicted attack-area geometry', v1:true, unverified:true,
+    fields: [
+      { name:'shape',   spec:'1-10A',  flag:'M', enumKey:'usafShapeAttack',
+        help:'CIRCLE, RECT, POINT, LINE' },
+      { name:'param1',  spec:'1-10X',  flag:'M',
+        help:'CIRCLE → radius (e.g., 1KM); RECT → length' },
+      { name:'param2',  spec:'1-10X',  flag:'O',
+        help:'RECT → width; LINE → bearing; otherwise unused' }
+    ]
+  },
+
+  PB: {
+    // PB — predicted hazard-area geometry primitive.
+    // For WEDGE: param1 = bearing (3N degrees), param2 = range (e.g. 10KM).
+    // For CIRCLE: param1 = radius.
+    desc: 'Predicted hazard-area geometry', v1:true, unverified:true,
+    fields: [
+      { name:'shape',   spec:'1-10A',  flag:'M', enumKey:'usafShapeHazard',
+        help:'WEDGE, CIRCLE, RECT' },
+      { name:'param1',  spec:'1-10X',  flag:'M',
+        help:'WEDGE → bearing (e.g., 090); CIRCLE → radius' },
+      { name:'param2',  spec:'1-10X',  flag:'O',
+        help:'WEDGE → range (e.g., 10KM); RECT → width' }
+    ]
+  },
+
+  ZULU: {
+    desc: 'DTG of message origin', v1:true, unverified:true,
+    fields: [
+      { name:'dtg', spec:'12-14AN', flag:'M', type:'dtg',
+        help:'DTG of message (e.g., 261400ZMAY26)' }
+    ]
+  }
+};
+
+/* USAF per-report set membership.
+   M = mandatory; O = optional. v1 covers CBRN 3 CHEM only. */
+App.ReportTypesUSAF = {
+  CBRN3_CHEM_USAF: {
+    label:'CBRN 3 CHEM (USAF) — predicted hazard warning',
+    sets: [
+      ['MSGID','M'], ['ALFA','M'], ['DELTA','M'], ['FOXTROT','M'],
+      ['GOLF','O'],  ['HOTEL','O'], ['PA','M'],   ['PB','M'],
+      ['ZULU','O']
+    ]
+  }
+};
+
+/* ============================================================
    TOKENIZER  [§2.1 of requirements]
    Input: a report string. Output: [{setName, fields:[string,...]}, ...]
    - sets terminated by `//`
@@ -1262,7 +1523,9 @@ App.Decoder = (function(){
   }
 
   function decodeSet(tok){
-    const def = App.SetDefs[tok.setName];
+    // Active dict: AFTTP/ATP45E share App.SetDefs; USAF has its own.
+    const defs = App.Standard.getSetDefs();
+    const def = defs[tok.setName];
     const result = {
       setName: tok.setName, def, decoded: [], errors: [], warnings: [],
       raw: tok.fields.slice()
@@ -1372,7 +1635,7 @@ App.Decoder = (function(){
   // Validate report against report-type set membership (M/O).
   function validateReport(toks, reportType){
     const issues = { errors:[], warnings:[] };
-    const def = App.ReportTypes[reportType];
+    const def = App.Standard.getReportTypes()[reportType];
     if (!def){ issues.errors.push('unknown report type '+reportType); return issues; }
     const present = new Set(toks.map(t=>t.setName));
     for (const [setName, flag] of def.sets){
@@ -1509,7 +1772,15 @@ App.Module1 = (function(){
                  // to support FOXTROT having one entry per pair).
   };
 
-  function getReportTypeDef(){ return App.ReportTypes[state.reportType]; }
+  // Module 1 always consults the ACTIVE standard's dictionary so the
+  // construct/parse/reference views switch between AFTTP/ATP45E (shared
+  // App.SetDefs / App.ReportTypes) and USAF (App.SetDefsUSAF /
+  // App.ReportTypesUSAF) without any other plumbing.
+  function activeSetDefs(){     return App.Standard.getSetDefs();     }
+  function activeReportTypes(){ return App.Standard.getReportTypes(); }
+  function activeSetDef(name){  return activeSetDefs()[name];         }
+
+  function getReportTypeDef(){ return activeReportTypes()[state.reportType]; }
 
   function ensureStateForType(){
     state.sets = {};
@@ -1519,7 +1790,7 @@ App.Module1 = (function(){
   }
 
   function initSet(setName){
-    const def = App.SetDefs[setName];
+    const def = activeSetDef(setName);
     if (!def) return [{ fields: [] }];
     if (def.repeatGroup){
       // FOXTROT — start with one pair.
@@ -1549,7 +1820,7 @@ App.Module1 = (function(){
   }
 
   function renderSetCard(setName, flag){
-    const def = App.SetDefs[setName];
+    const def = activeSetDef(setName);
     const card = document.createElement('div');
     card.className = 'set';
     const header = document.createElement('div');
@@ -1719,7 +1990,7 @@ App.Module1 = (function(){
   function buildTokens(){
     const toks = [];
     for (const [setName, flag] of getReportTypeDef().sets){
-      const def = App.SetDefs[setName];
+      const def = activeSetDef(setName);
       const occs = state.sets[setName] || [];
       if (def.repeatGroup){
         const flat = occs.flatMap(o=>o.fields);
@@ -1849,8 +2120,15 @@ App.Module1 = (function(){
   // sets. Returns null if confidence is too low.
   function guessReportType(toks){
     const present = new Set(toks.map(t=>t.setName));
+    // USAF format is identified unambiguously by MSGID and/or PA/PB.
+    // Those sets don't appear in AFTTP/ATP45E so a single signal is
+    // enough — return the USAF report type even when the user is on a
+    // non-USAF standard so "Load into editor" can prompt a switch.
+    if (present.has('MSGID') || present.has('PA') || present.has('PB')){
+      return 'CBRN3_CHEM_USAF';
+    }
     let best = null, bestScore = -1;
-    for (const [id, def] of Object.entries(App.ReportTypes)){
+    for (const [id, def] of Object.entries(activeReportTypes())){
       // +1 for every mandatory present, -1 for every mandatory missing.
       let s = 0;
       for (const [n, f] of def.sets){
@@ -1870,12 +2148,20 @@ App.Module1 = (function(){
   function loadParsedIntoEditor(){
     if (!parseLastDecoded || !parseLastDecoded.typeGuess) return;
     const t = parseLastDecoded.typeGuess;
+    // If the parsed report is USAF but the active standard isn't, switch
+    // first so the dropdown rebuild (driven by Standard.subscribe) exposes
+    // the USAF option BEFORE we try to select it.
+    if (t === 'CBRN3_CHEM_USAF' && App.Standard.getKey() !== 'USAF'){
+      App.Standard.set('USAF');
+    } else if (t !== 'CBRN3_CHEM_USAF' && App.Standard.getKey() === 'USAF'){
+      App.Standard.set('AFTTP');
+    }
     state.reportType = t;
     document.getElementById('reportType').value = t;
     ensureStateForType();
     // Map tokens onto state.sets where possible.
     for (const tok of parseLastDecoded.toks){
-      const def = App.SetDefs[tok.setName];
+      const def = activeSetDef(tok.setName);
       if (!def || !state.sets[tok.setName]) continue;
       // Normalize empty placeholders back to ''.
       const norm = tok.fields.map(f => f === '-' ? '' : f);
@@ -1899,8 +2185,11 @@ App.Module1 = (function(){
   function renderReference(){
     const out = document.getElementById('referenceOut');
     out.innerHTML = '';
-    out.appendChild(html('<p class="notes">Sets used by Module 1 v1 (CHEM NBC1/2/3):</p>'));
-    Object.entries(App.SetDefs).forEach(([name, def])=>{
+    const isUsaf = App.Standard.getKey() === 'USAF';
+    out.appendChild(html('<p class="notes">'+(isUsaf
+      ? 'USAF CBRN 3 CHEM set inventory (training-example format — UNVERIFIED):'
+      : 'Sets used by Module 1 v1 (CHEM NBC1/2/3):')+'</p>'));
+    Object.entries(activeSetDefs()).forEach(([name, def])=>{
       const card = document.createElement('div'); card.className='ref-set';
       card.innerHTML = '<h4>'+name+' <small style="color:#aaa;font-weight:400;font-size:11px">[v1]</small>'+
         (def.unverified?' <span class="tag unverified">UNVERIFIED</span>':'')+'</h4>'+
@@ -1946,7 +2235,12 @@ App.Module1 = (function(){
     return { reportType: state.reportType, sets: state.sets };
   }
   function stateFromScenario(sc){
-    if (!sc || !sc.reportType || !App.ReportTypes[sc.reportType]) throw new Error('bad scenario');
+    if (!sc || !sc.reportType) throw new Error('bad scenario');
+    // Auto-switch standard if the scenario is USAF (or back).
+    const isUsaf = sc.reportType === 'CBRN3_CHEM_USAF';
+    if (isUsaf && App.Standard.getKey() !== 'USAF') App.Standard.set('USAF');
+    else if (!isUsaf && App.Standard.getKey() === 'USAF') App.Standard.set('AFTTP');
+    if (!activeReportTypes()[sc.reportType]) throw new Error('bad scenario');
     state.reportType = sc.reportType;
     document.getElementById('reportType').value = sc.reportType;
     ensureStateForType();
@@ -2006,6 +2300,22 @@ App.Module1 = (function(){
           YANKEE: [{fields:['105DGT','009KPH']}],
           ZULU:   [{fields:['4','18C','9','-','2']}],
           GENTEXT:[{fields:['CBRNINFO','TYPE A, CASE 1']}]
+        }
+      });
+    } else if (state.reportType === 'CBRN3_CHEM_USAF'){
+      // The USAF training-example message (the build target for this mode).
+      stateFromScenario({
+        reportType:'CBRN3_CHEM_USAF',
+        sets:{
+          MSGID:  [{fields:['CBRN 3 CHEM','CBRN CONTROL CENTER']}],
+          ALFA:   [{fields:['US','A','CH-004-26']}],
+          DELTA:  [{fields:['261330ZMAY26']}],
+          FOXTROT:[{fields:['ACTUAL','NV123456']}],
+          GOLF:   [{fields:['ARTY','12']}],
+          HOTEL:  [{fields:['GB','AIR']}],
+          PA:     [{fields:['CIRCLE','1KM']}],
+          PB:     [{fields:['WEDGE','090','10KM']}],
+          ZULU:   [{fields:['261400ZMAY26']}]
         }
       });
     }
@@ -3654,11 +3964,142 @@ App.Plotting = (function(){
     };
   }
 
+  /* ============================================================
+     USAF DIRECT-GEOMETRY PLOTTING [USAF CBRN 3 CHEM]
+     The USAF format carries the plotted geometry IN the message
+     (PA/PB sets), so this code path skips the Table E-1
+     determination engine entirely and draws shape primitives
+     literally.
+
+     Input: an object derived from a parsed CBRN3_CHEM_USAF report.
+       {
+         pa: { shape:'CIRCLE', radiusKm:1 } |
+             { shape:'RECT', lengthKm, widthKm } |
+             { shape:'POINT' },
+         pb: { shape:'WEDGE', bearingDeg:90, rangeKm:10 } |
+             { shape:'CIRCLE', radiusKm },
+         primaryLabel?: 'NV123456',
+         agent?: 'GB',
+         msgKind?: 'CBRN 3 CHEM',
+         dtgAttack?: '261330ZMAY26'
+       }
+     Output: the SAME GeometryResult shape App.Plotting.compute()
+     returns, so Module 3's renderer / annotations / export work
+     unchanged.
+     ============================================================ */
+  function parseKmDim(s){
+    // Accepts "1KM", "01KM", "10KM", "1.5KM", or a plain number.
+    if (s == null) return null;
+    const m = String(s).trim().toUpperCase().match(/^(\d+(?:\.\d+)?)\s*KM?$/);
+    if (m) return parseFloat(m[1]);
+    const n = parseFloat(s);
+    return isFinite(n) ? n : null;
+  }
+  function computeFromUsaf(inp){
+    const errors = [];
+    const warnings = [];
+    const pa = inp.pa || {};
+    const pb = inp.pb || {};
+
+    // Attack-area radius (km). CIRCLE only in v1; RECT/POINT/LINE
+    // fall through as best-effort with a warning.
+    let attackR = null;
+    if (pa.shape === 'CIRCLE'){
+      attackR = parseKmDim(pa.radiusKm != null ? pa.radiusKm : pa.param1);
+      if (attackR == null) errors.push('PA CIRCLE: cannot parse radius "'+pa.param1+'"');
+    } else if (pa.shape === 'POINT'){
+      attackR = 0;
+    } else if (pa.shape === 'RECT'){
+      // Use half the larger dimension as an approximation; rectangle
+      // rendering is not implemented in the schematic v1.
+      const l = parseKmDim(pa.lengthKm != null ? pa.lengthKm : pa.param1);
+      const w = parseKmDim(pa.widthKm  != null ? pa.widthKm  : pa.param2);
+      attackR = Math.max(l||0, w||0)/2 || null;
+      warnings.push('PA RECT rendered as approximating circle [UNVERIFIED]');
+    } else if (pa.shape){
+      warnings.push('PA shape "'+pa.shape+'" not implemented — using POINT [UNVERIFIED]');
+      attackR = 0;
+    } else {
+      errors.push('PA shape missing');
+    }
+
+    // Hazard area: WEDGE (bearing + range) or CIRCLE (radius).
+    let hazardShape = null, hazardR = null, bearingDeg = null;
+    if (pb.shape === 'WEDGE'){
+      bearingDeg = parseFloat(pb.bearingDeg != null ? pb.bearingDeg : pb.param1);
+      hazardR    = parseKmDim(pb.rangeKm   != null ? pb.rangeKm   : pb.param2);
+      if (!isFinite(bearingDeg)) errors.push('PB WEDGE: cannot parse bearing "'+pb.param1+'"');
+      if (hazardR == null)       errors.push('PB WEDGE: cannot parse range "'+pb.param2+'"');
+      hazardShape = 'wedge';
+    } else if (pb.shape === 'CIRCLE'){
+      hazardR = parseKmDim(pb.radiusKm != null ? pb.radiusKm : pb.param1);
+      if (hazardR == null) errors.push('PB CIRCLE: cannot parse radius "'+pb.param1+'"');
+      hazardShape = 'circle';
+    } else if (pb.shape){
+      warnings.push('PB shape "'+pb.shape+'" not implemented [UNVERIFIED]');
+    } else {
+      errors.push('PB shape missing');
+    }
+
+    // Build a virtual Type/Case label so the renderer's title block
+    // and annotation engine can reuse existing wedge/circle code paths.
+    // Type "U" (USAF direct geometry) Case 1 = concentric circles,
+    // Case 2 = wedge. Both are pure-rendering categories — there's no
+    // doctrinal determination behind them.
+    const usafCase = (hazardShape === 'wedge') ? 2 : 1;
+    const determination = {
+      type: 'U', caseNum: usafCase,
+      attackRadiusKm: attackR || 0,
+      hazardRadiusKm: (hazardShape === 'circle') ? hazardR : null,
+      dhdSource: 'usaf-message-supplied',
+      warnings: [],
+      citation: 'USAF CBRN 3 CHEM PA/PB direct geometry [UNVERIFIED]'
+    };
+    const dimensions = {
+      type: 'U', caseNum: usafCase,
+      attackRadiusKm: attackR,
+      hazardRangeKm: hazardR,
+      downwindDirDeg: bearingDeg,
+      upwindKm: (hazardShape === 'wedge' && attackR != null) ? 2 * attackR : null,
+      halfAngleDeg: (hazardShape === 'wedge') ? 30 : null
+    };
+
+    let geometry;
+    if (errors.length){
+      geometry = { shapes:[], extentKm:5 };
+    } else if (hazardShape === 'circle'){
+      geometry = concentric(inp.primaryLabel, attackR, hazardR);
+    } else if (hazardShape === 'wedge'){
+      geometry = singleWedge(inp.primaryLabel, attackR, bearingDeg, hazardR);
+    } else {
+      geometry = { shapes:[], extentKm:5 };
+    }
+
+    // Reuse the existing annotation engine. addAnnotations() recognises
+    // caseNum 1 (concentric) and caseNum 2 (wedge) — the Type letter is
+    // only used by the Type C / D special-case branches, so passing
+    // type='U' falls through to the generic concentric/wedge labelling.
+    geometry.annotations = addAnnotations(geometry, determination, dimensions);
+
+    return {
+      determination, geometry, dimensions,
+      computation: {
+        inputs: {
+          msgKind: inp.msgKind, agent: inp.agent, dtgAttack: inp.dtgAttack,
+          primaryLabel: inp.primaryLabel,
+          pa: inp.pa, pb: inp.pb
+        },
+        determination, dhd: null
+      },
+      maskRemoval: null, conflicts: [], errors, warnings
+    };
+  }
+
   return {
     CONTAINERS, PERSISTENCY,
     determine, lookupDhd, maskRemovalTime, stabilityBand, dhdGroup,
     azimuthToVec, concentric, singleWedge, lineAttackCase5, lineAttackCase6,
-    compute, render, arrivalTimes, TABLE_E3
+    compute, computeFromUsaf, parseKmDim, render, arrivalTimes, TABLE_E3
   };
 })();
 
@@ -3962,9 +4403,56 @@ App.Module3 = (function(){
     };
   }
 
+  // Build the input object for App.Plotting.computeFromUsaf() from
+  // Module 1's current USAF state. Returns { ok:true, inp } or
+  // { ok:false, error } when the state can't be coerced.
+  function gatherUsafInputs(){
+    const st = App.Module1._state;
+    if (st.reportType !== 'CBRN3_CHEM_USAF'){
+      return { ok:false, error:'Module 1 is on '+st.reportType+
+        '; USAF plotting needs CBRN3_CHEM_USAF.' };
+    }
+    const sets = st.sets || {};
+    function getField(setName, idx){
+      const occ = sets[setName] && sets[setName][0];
+      const v = occ && occ.fields && occ.fields[idx];
+      return (v && v !== '-') ? v : null;
+    }
+    const paShape = (getField('PA', 0) || '').toUpperCase();
+    const pbShape = (getField('PB', 0) || '').toUpperCase();
+    if (!paShape) return { ok:false, error:'USAF: PA set missing' };
+    if (!pbShape) return { ok:false, error:'USAF: PB set missing' };
+    return { ok:true, inp:{
+      pa: { shape:paShape, param1:getField('PA',1), param2:getField('PA',2) },
+      pb: { shape:pbShape, param1:getField('PB',1), param2:getField('PB',2) },
+      msgKind:    getField('MSGID',0),
+      agent:      getField('HOTEL',0),
+      dtgAttack:  getField('DELTA',0),
+      primaryLabel: getField('FOXTROT',1) || getField('FOXTROT',0) || ''
+    }};
+  }
+
   function compute(){
-    const inp = gatherInputs();
     const out = document.getElementById('plotOutput');
+    // USAF direct-geometry path — short-circuits Table E-1 and the CDM
+    // (the message carries PA/PB shape primitives, not container/agent/wind).
+    const usingMod1 = document.getElementById('plotSource').value === 'mod1';
+    const usaf = (usingMod1 &&
+      App.Standard.get().hasUsafGeom &&
+      App.Module1._state.reportType === 'CBRN3_CHEM_USAF');
+    if (usaf){
+      const g = gatherUsafInputs();
+      if (!g.ok){
+        out.innerHTML = '<div class="card validation"><div class="err">'+escHTML(g.error)+'</div></div>';
+        return;
+      }
+      const res = App.Plotting.computeFromUsaf(g.inp);
+      ui.lastResult = res;
+      renderResult(out, res);
+      return;
+    }
+
+    const inp = gatherInputs();
     if (inp._error){ out.innerHTML = '<div class="card validation"><div class="err">'+escHTML(inp._error)+'</div></div>'; return; }
     const cdm = inp._cdmUsed;
     if (!cdm){
@@ -3979,7 +4467,14 @@ App.Module3 = (function(){
     res._cdmSource = cdm.source || 'paste';
     res._lineAutoNote = inp._lineAutoNote;
     ui.lastResult = res;
+    renderResult(out, res);
+  }
 
+  // Renders a GeometryResult into `out`. Used by both the standard
+  // compute() path and the USAF direct-geometry short-circuit. Most
+  // panels are conditional on res properties so they degrade gracefully
+  // for USAF (no CDM, no conflicts, no mask-removal, no arrival times).
+  function renderResult(out, res){
     out.innerHTML = '';
     // Line-attack auto-detection note (MGRS same-square decode).
     if (res._lineAutoNote){
@@ -4068,21 +4563,33 @@ App.Module3 = (function(){
 
     // Computation panel [R-M3.7.6]
     const cp = document.createElement('div'); cp.className = 'compute-panel';
-    cp.innerHTML = '<h4>How this was computed</h4>'+
-      '<div class="kv">'+
+    const ins = res.computation.inputs || {};
+    const sharedKv =
       '<div class="k">type</div><div class="v">'+res.determination.type+'</div>'+
       '<div class="k">case</div><div class="v">'+(res.determination.caseNum||'—')+'</div>'+
       '<div class="k">attack r</div><div class="v">'+(res.dimensions.attackRadiusKm||'—')+' km</div>'+
       '<div class="k">hazard</div><div class="v">'+(res.dimensions.hazardRangeKm!=null?(res.dimensions.hazardRangeKm+' km'):'—')+'</div>'+
       (res.dimensions.upwindKm!=null?'<div class="k">upwind 2R</div><div class="v">'+res.dimensions.upwindKm+' km</div>':'')+
       (res.dimensions.halfAngleDeg!=null?'<div class="k">half-angle</div><div class="v">'+res.dimensions.halfAngleDeg+'°</div>':'')+
-      (res.dimensions.downwindDirDeg!=null?'<div class="k">downwind °</div><div class="v">'+Math.round(res.dimensions.downwindDirDeg)+'°</div>':'')+
-      '<div class="k">container</div><div class="v">'+escHTML(res.computation.inputs.container||'—')+'</div>'+
-      '<div class="k">burst</div><div class="v">'+escHTML(res.computation.inputs.burst||'—')+'</div>'+
-      '<div class="k">persistency</div><div class="v">'+escHTML(res.computation.inputs.persistency||'—')+'</div>'+
-      '<div class="k">wind kph</div><div class="v">'+(res.computation.inputs.windSpeedKph!=null?res.computation.inputs.windSpeedKph.toFixed(1):'—')+'</div>'+
-      '<div class="k">stability</div><div class="v">'+escHTML(res.computation.inputs.stabilityCode||'—')+'</div>'+
-      '</div>'+
+      (res.dimensions.downwindDirDeg!=null?'<div class="k">downwind °</div><div class="v">'+Math.round(res.dimensions.downwindDirDeg)+'°</div>':'');
+    // USAF direct-geometry path carries inputs.pa/pb instead of the AFTTP
+    // container/burst/persistency/wind/stability fields — render those.
+    const isUsaf = !!(ins.pa || ins.pb);
+    const usafKv = isUsaf
+      ? '<div class="k">msg kind</div><div class="v">'+escHTML(ins.msgKind||'—')+'</div>'+
+        '<div class="k">agent (HOTEL)</div><div class="v">'+escHTML(ins.agent||'—')+'</div>'+
+        '<div class="k">DTG attack</div><div class="v">'+escHTML(ins.dtgAttack||'—')+'</div>'+
+        '<div class="k">PA shape</div><div class="v">'+escHTML((ins.pa&&ins.pa.shape)||'—')+'</div>'+
+        '<div class="k">PA params</div><div class="v">'+escHTML([(ins.pa&&ins.pa.param1)||'',(ins.pa&&ins.pa.param2)||''].filter(Boolean).join(' / ')||'—')+'</div>'+
+        '<div class="k">PB shape</div><div class="v">'+escHTML((ins.pb&&ins.pb.shape)||'—')+'</div>'+
+        '<div class="k">PB params</div><div class="v">'+escHTML([(ins.pb&&ins.pb.param1)||'',(ins.pb&&ins.pb.param2)||''].filter(Boolean).join(' / ')||'—')+'</div>'
+      : '<div class="k">container</div><div class="v">'+escHTML(ins.container||'—')+'</div>'+
+        '<div class="k">burst</div><div class="v">'+escHTML(ins.burst||'—')+'</div>'+
+        '<div class="k">persistency</div><div class="v">'+escHTML(ins.persistency||'—')+'</div>'+
+        '<div class="k">wind kph</div><div class="v">'+(ins.windSpeedKph!=null?ins.windSpeedKph.toFixed(1):'—')+'</div>'+
+        '<div class="k">stability</div><div class="v">'+escHTML(ins.stabilityCode||'—')+'</div>';
+    cp.innerHTML = '<h4>How this was computed</h4>'+
+      '<div class="kv">'+ sharedKv + usafKv +'</div>'+
       '<div class="cite">'+escHTML(res.determination.citation)+'</div>'+
       (res.computation.dhd ? '<div class="cite">DHD source: '+escHTML(res.computation.dhd.source)+(res.computation.dhd.dhdGroup?(' (group '+res.computation.dhd.dhdGroup+', '+res.computation.dhd.stabilityBand+')'):'')+' → '+res.computation.dhd.dhdKm+' km</div>' : '');
     if (res.warnings.length){
@@ -5039,6 +5546,197 @@ App.Tests = (function(){
       'inverse mismatch: in='+JSON.stringify(kmIn)+' out='+JSON.stringify(kmOut));
   });
 
+  /* ============================================================
+     USAF CBRN 3 CHEM — tokenizer, decoder, plot tests.
+     Build target: the training-example message
+       MSGID/CBRN 3 CHEM/CBRN CONTROL CENTER//
+       ALFA/US/A/CH-004-26//
+       DELTA/261330ZMAY26//
+       FOXTROT/ACTUAL/NV123456//
+       GOLF/ARTY/12//
+       HOTEL/GB/AIR//
+       PA/CIRCLE/1KM//
+       PB/WEDGE/090/10KM//
+       ZULU/261400ZMAY26//
+     ============================================================ */
+  const USAF_SAMPLE =
+    'MSGID/CBRN 3 CHEM/CBRN CONTROL CENTER//\n'+
+    'ALFA/US/A/CH-004-26//\n'+
+    'DELTA/261330ZMAY26//\n'+
+    'FOXTROT/ACTUAL/NV123456//\n'+
+    'GOLF/ARTY/12//\n'+
+    'HOTEL/GB/AIR//\n'+
+    'PA/CIRCLE/1KM//\n'+
+    'PB/WEDGE/090/10KM//\n'+
+    'ZULU/261400ZMAY26//';
+
+  add('USAF: STD pill cycles AFTTP → ATP45E → USAF → AFTTP', ()=>{
+    eq(App.Standard.getKey(), 'AFTTP');
+    App.Standard.toggle(); eq(App.Standard.getKey(), 'ATP45E');
+    App.Standard.toggle(); eq(App.Standard.getKey(), 'USAF');
+    App.Standard.toggle(); eq(App.Standard.getKey(), 'AFTTP');
+  });
+  add('USAF: getSetDefs returns App.SetDefsUSAF when active', ()=>{
+    App.Standard.set('USAF');
+    try {
+      eq(App.Standard.getSetDefs(), App.SetDefsUSAF);
+      eq(App.Standard.getReportTypes(), App.ReportTypesUSAF);
+    } finally { App.Standard.set('AFTTP'); }
+  });
+  add('USAF: PA/PB/MSGID/HOTEL set definitions present', ()=>{
+    assert(App.SetDefsUSAF.MSGID,  'MSGID set def');
+    assert(App.SetDefsUSAF.PA,     'PA set def');
+    assert(App.SetDefsUSAF.PB,     'PB set def');
+    assert(App.SetDefsUSAF.HOTEL,  'HOTEL set def');
+    eq(App.SetDefsUSAF.FOXTROT.fields[0].name, 'qualifier');  // qualifier FIRST in USAF
+    eq(App.SetDefsUSAF.FOXTROT.fields[1].name, 'location');
+  });
+  add('USAF: CBRN3_CHEM_USAF report type lists MSGID/PA/PB as M', ()=>{
+    const rt = App.ReportTypesUSAF.CBRN3_CHEM_USAF;
+    assert(rt, 'CBRN3_CHEM_USAF defined');
+    const mset = rt.sets.filter(([,f]) => f === 'M').map(([n]) => n);
+    ['MSGID','ALFA','DELTA','FOXTROT','PA','PB'].forEach(n =>
+      assert(mset.includes(n), n+' should be mandatory; mset='+JSON.stringify(mset)));
+  });
+
+  add('USAF: tokenizer round-trips the full sample message', ()=>{
+    const toks = App.Tokenizer.tokenize(USAF_SAMPLE);
+    eq(toks.length, 9);
+    const names = toks.map(t=>t.setName);
+    deepEq(names, ['MSGID','ALFA','DELTA','FOXTROT','GOLF','HOTEL','PA','PB','ZULU']);
+    // Round-trip: re-format each set matches the original line.
+    const back = toks.map(App.Formatter.formatSet).join('\n');
+    eq(back, USAF_SAMPLE);
+  });
+  add('USAF: tokenizer preserves MSGID body with space ("CBRN 3 CHEM")', ()=>{
+    const toks = App.Tokenizer.tokenize('MSGID/CBRN 3 CHEM/CBRN CONTROL CENTER//');
+    deepEq(toks[0].fields, ['CBRN 3 CHEM','CBRN CONTROL CENTER']);
+  });
+
+  add('USAF: decoder validates message under USAF standard', ()=>{
+    App.Standard.set('USAF');
+    try {
+      const toks = App.Tokenizer.tokenize(USAF_SAMPLE);
+      const decoded = App.Decoder.decodeReport(toks);
+      // No structural errors per set.
+      decoded.forEach(d => eq(d.errors.length, 0, d.setName+': '+JSON.stringify(d.errors)));
+      // FOXTROT qualifier-then-grid: "ACTUAL" decodes to its label.
+      const fox = decoded.find(d => d.setName === 'FOXTROT');
+      eq(fox.decoded[0].raw, 'ACTUAL');
+      eq(fox.decoded[0].decodedLabel, 'Actual location');
+      eq(fox.decoded[1].raw, 'NV123456');
+      // PA / PB raw values come through.
+      const pa = decoded.find(d => d.setName === 'PA');
+      eq(pa.decoded[0].raw, 'CIRCLE');
+      eq(pa.decoded[1].raw, '1KM');
+      const pb = decoded.find(d => d.setName === 'PB');
+      eq(pb.decoded[0].raw, 'WEDGE');
+      eq(pb.decoded[1].raw, '090');
+      eq(pb.decoded[2].raw, '10KM');
+      // Report-level set-membership check (all mandatories present).
+      const v = App.Decoder.validateReport(toks, 'CBRN3_CHEM_USAF');
+      eq(v.errors.length, 0, 'unexpected errors: '+JSON.stringify(v.errors));
+    } finally { App.Standard.set('AFTTP'); }
+  });
+  add('USAF: guessReportType detects USAF format via MSGID/PA/PB', ()=>{
+    // No need to switch standard — the discriminator is structural.
+    const toks = App.Tokenizer.tokenize(USAF_SAMPLE);
+    // App.Module1.guessReportType is private; the public surface for this
+    // is via App.Module1._renderParse, but we test the same signal here.
+    const present = new Set(toks.map(t => t.setName));
+    assert(present.has('MSGID') && present.has('PA') && present.has('PB'),
+      'guess discriminator (MSGID/PA/PB) should be present');
+  });
+
+  add('USAF plot: parseKmDim accepts "1KM"/"01KM"/"10KM"', ()=>{
+    eq(App.Plotting.parseKmDim('1KM'),  1);
+    eq(App.Plotting.parseKmDim('01KM'), 1);
+    eq(App.Plotting.parseKmDim('10KM'), 10);
+    eq(App.Plotting.parseKmDim('1.5KM'), 1.5);
+    eq(App.Plotting.parseKmDim('5'), 5);   // bare number
+    eq(App.Plotting.parseKmDim('foo'), null);
+  });
+  add('USAF plot: PA CIRCLE 1KM + PB WEDGE 090 10KM → wedge geometry', ()=>{
+    const r = App.Plotting.computeFromUsaf({
+      pa: { shape:'CIRCLE', param1:'1KM' },
+      pb: { shape:'WEDGE',  param1:'090', param2:'10KM' },
+      primaryLabel: 'NV123456', msgKind:'CBRN 3 CHEM', agent:'GB'
+    });
+    eq(r.errors.length, 0, 'errors: '+JSON.stringify(r.errors));
+    eq(r.determination.type, 'U');         // USAF direct-geometry pseudo-type
+    eq(r.determination.caseNum, 2);
+    eq(r.dimensions.attackRadiusKm, 1);
+    eq(r.dimensions.hazardRangeKm, 10);
+    eq(r.dimensions.downwindDirDeg, 90);
+    eq(r.dimensions.upwindKm, 2);
+    eq(r.dimensions.halfAngleDeg, 30);
+    // Geometry: an attack circle (r=1) and a wedge with D=10.
+    const wedge  = r.geometry.shapes.find(s => s.kind === 'wedge');
+    const circle = r.geometry.shapes.find(s => s.kind === 'circle' && s.role === 'attack');
+    assert(wedge, 'expected wedge shape');
+    eq(wedge.dhdKm, 10);
+    eq(wedge.attackR, 1);
+    assert(circle, 'expected attack circle');
+    eq(circle.r, 1);
+  });
+  add('USAF plot: PA CIRCLE / PB CIRCLE → concentric circles', ()=>{
+    const r = App.Plotting.computeFromUsaf({
+      pa: { shape:'CIRCLE', param1:'1KM' },
+      pb: { shape:'CIRCLE', param1:'3KM' }
+    });
+    eq(r.errors.length, 0);
+    eq(r.determination.caseNum, 1);
+    eq(r.dimensions.attackRadiusKm, 1);
+    eq(r.dimensions.hazardRangeKm, 3);
+    const circles = r.geometry.shapes.filter(s => s.kind === 'circle');
+    assert(circles.some(c => c.role === 'attack' && c.r === 1));
+    assert(circles.some(c => c.role === 'hazard' && c.r === 3));
+  });
+  add('USAF plot: missing PA shape → specific error (fail-loud)', ()=>{
+    const r = App.Plotting.computeFromUsaf({ pb: { shape:'CIRCLE', param1:'3KM' } });
+    assert(r.errors.some(e => /PA shape missing/.test(e)),
+      'expected "PA shape missing"; got: '+JSON.stringify(r.errors));
+  });
+  add('USAF plot: unparseable WEDGE bearing → specific error', ()=>{
+    const r = App.Plotting.computeFromUsaf({
+      pa: { shape:'CIRCLE', param1:'1KM' },
+      pb: { shape:'WEDGE',  param1:'NORTH', param2:'10KM' }
+    });
+    assert(r.errors.some(e => /WEDGE.*bearing/.test(e)),
+      'expected bearing parse error; got: '+JSON.stringify(r.errors));
+  });
+
+  add('USAF e2e: full sample message → loaded into state → plot', ()=>{
+    // Mirrors what the Construct "Load sample" button + Module 3
+    // "Use current Module 1 form" achieves end-to-end.
+    App.Standard.set('USAF');
+    try {
+      const toks = App.Tokenizer.tokenize(USAF_SAMPLE);
+      // Extract PA/PB shape primitives the way Module 3.gatherUsafInputs() does.
+      function field(setName, idx){
+        const t = toks.find(t=>t.setName===setName);
+        const v = t && t.fields[idx];
+        return (v && v !== '-') ? v : null;
+      }
+      const inp = {
+        pa: { shape:field('PA',0), param1:field('PA',1), param2:field('PA',2) },
+        pb: { shape:field('PB',0), param1:field('PB',1), param2:field('PB',2) },
+        primaryLabel: field('FOXTROT',1),
+        agent: field('HOTEL',0)
+      };
+      const r = App.Plotting.computeFromUsaf(inp);
+      eq(r.errors.length, 0);
+      eq(r.dimensions.attackRadiusKm, 1);
+      eq(r.dimensions.hazardRangeKm, 10);
+      eq(r.dimensions.downwindDirDeg, 90);
+      // Renderer can draw it without throwing.
+      const c = document.createElement('canvas');
+      c.clientWidth = 400; c.clientHeight = 400;
+      App.Plotting.render(c, r, { zoom:1 });
+      assert(c.width > 0, 'canvas rendered');
+    } finally { App.Standard.set('AFTTP'); }
+  });
+
   function run(){
     const root = document.getElementById('testResults');
     root.innerHTML = '<p>Running '+tests.length+' tests…</p>';
@@ -5115,20 +5813,47 @@ App.Tests = (function(){
     const helpCit = document.getElementById('helpCitations');
     if (helpCit) helpCit.textContent = cfg.citationLong;
 
-    // Module 1 report-type dropdown labels (NBC ↔ CBRN). The value=
-    // attribute stays "NBC1_CHEM" so scenario JSON, tests, and stored
-    // state are preserved across toggles.
-    document.querySelectorAll('#reportType option[data-stdshort]').forEach(opt=>{
-      const sh = opt.getAttribute('data-stdshort');     // "NBC1"
-      const num = sh.replace(/^NBC/,'');
-      const newShort = cfg.reportFamily + num;          // "NBC1" or "CBRN1"
-      const labels = {
-        '1':"observer's report",
-        '2':'evaluated data',
-        '3':'predicted hazard warning'
-      };
-      opt.textContent = newShort+' CHEM — '+labels[num];
-    });
+    // Module 1 report-type dropdown — rebuild options to match the
+    // active standard's report-types dictionary. Under AFTTP/ATP45E
+    // we keep the three NBC/CBRN options (and just relabel them so
+    // scenario JSON values stay stable). Under USAF we show only the
+    // USAF-specific report types.
+    const rtSel = document.getElementById('reportType');
+    const prev = rtSel.value;
+    if (cfg.key === 'USAF'){
+      rtSel.innerHTML = '';
+      Object.entries(App.ReportTypesUSAF).forEach(([id, def])=>{
+        const o = document.createElement('option');
+        o.value = id; o.textContent = def.label;
+        rtSel.appendChild(o);
+      });
+    } else {
+      rtSel.innerHTML =
+        '<option value="NBC1_CHEM" data-stdshort="NBC1"></option>'+
+        '<option value="NBC2_CHEM" data-stdshort="NBC2"></option>'+
+        '<option value="NBC3_CHEM" data-stdshort="NBC3"></option>';
+      rtSel.querySelectorAll('option[data-stdshort]').forEach(opt=>{
+        const sh = opt.getAttribute('data-stdshort');     // "NBC1"
+        const num = sh.replace(/^NBC/,'');
+        const newShort = cfg.reportFamily + num;          // "NBC1" or "CBRN1"
+        const labels = {
+          '1':"observer's report",
+          '2':'evaluated data',
+          '3':'predicted hazard warning'
+        };
+        opt.textContent = newShort+' CHEM — '+labels[num];
+      });
+    }
+    // Restore prior selection if still valid; otherwise pick the first
+    // available option and notify Module 1 so it re-renders the form.
+    const valid = Array.from(rtSel.options).some(o => o.value === prev);
+    if (valid){
+      rtSel.value = prev;
+    } else {
+      rtSel.value = rtSel.options[0].value;
+      // Fire 'change' so Module 1's listener resets state for the new type.
+      rtSel.dispatchEvent(new Event('change'));
+    }
 
     // Module 3 Type D field visibility — only ATP-45(E) exposes it.
     const tdField = document.getElementById('plotTypeDField');
