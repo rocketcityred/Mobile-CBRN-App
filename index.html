@@ -1807,6 +1807,12 @@ App.Module1 = (function(){
     state.reportType = t;
     ensureStateForType();
     renderConstruct();
+    // Notify Module 3 so the "Source: Use current Module 1 form" status
+    // banner reflects the new report type (e.g. switching to/from the
+    // USAF report type changes which message is shown there).
+    if (App.Module3 && App.Module3._refreshSourceStatus){
+      App.Module3._refreshSourceStatus();
+    }
   }
 
   /* ---- Construct form rendering ---- */
@@ -4675,21 +4681,48 @@ App.Module3 = (function(){
       ui.lastResult = null; ui.lastCanvas = null;
     });
     document.getElementById('plotGotoCdm').addEventListener('click', ()=>App.Shell.navigate('mod2'));
-    document.getElementById('plotSource').addEventListener('change', e=>{
-      const isQuick = e.target.value === 'quick';
+    // Status text below the Source selector — recomputed on every event
+    // that can change its meaning (source dropdown change, standard
+    // toggle, Module 1 report-type change). The USAF path (CBRN3 CHEM
+    // USAF, hasUsafGeom standard) is accepted alongside NBC2/NBC3 CHEM;
+    // anything else explains *which* type to switch to.
+    function refreshSourceStatus(){
+      const sel = document.getElementById('plotSource');
+      const st  = document.getElementById('plotMod1Status');
+      if (!sel || !st) return;
+      const isQuick = sel.value === 'quick';
       document.getElementById('plotQuickFields').style.display = isQuick ? '' : 'none';
-      const st = document.getElementById('plotMod1Status');
-      if (!isQuick){
-        const m1 = App.Module1._state;
-        st.style.display = '';
-        const ok = (m1.reportType === 'NBC2_CHEM' || m1.reportType === 'NBC3_CHEM');
-        st.innerHTML = 'Reading from Module 1 (current report type: <strong>'+m1.reportType+'</strong>). '+
-          (ok ? 'NBC2 and NBC3 CHEM are both accepted.'
-              : '<span style="color:var(--err)">Switch Module 1 to NBC2 CHEM or NBC3 CHEM before computing.</span>');
+      if (isQuick){ st.style.display = 'none'; return; }
+      const m1 = App.Module1._state;
+      const t = m1.reportType;
+      const stdCfg = App.Standard.get();
+      const isAfttpType = (t === 'NBC2_CHEM' || t === 'NBC3_CHEM');
+      const isUsafType  = (t === 'CBRN3_CHEM_USAF' && stdCfg.hasUsafGeom);
+      const prefix = 'Reading from Module 1 (current report type: <strong>'+
+                     escHTML(t)+'</strong>). ';
+      let msg;
+      if (isUsafType){
+        msg = 'USAF direct-geometry path: PA/PB shape primitives will be plotted '+
+              'directly — no CDM required.';
+      } else if (isAfttpType){
+        msg = 'NBC2 and NBC3 CHEM are both accepted.';
+      } else if (stdCfg.hasUsafGeom){
+        // USAF standard active but Module 1 isn't on the USAF report type.
+        msg = '<span style="color:var(--err)">Switch Module 1 to CBRN 3 CHEM '+
+              '(USAF) before computing.</span>';
       } else {
-        st.style.display = 'none';
+        msg = '<span style="color:var(--err)">Switch Module 1 to NBC2 CHEM '+
+              'or NBC3 CHEM before computing.</span>';
       }
-    });
+      st.style.display = '';
+      st.innerHTML = prefix + msg;
+    }
+    document.getElementById('plotSource').addEventListener('change', refreshSourceStatus);
+    // Standard toggle changes which report types qualify — re-evaluate.
+    App.Standard.subscribe(refreshSourceStatus);
+    // Expose so Module 1 can ping us when its reportType changes (see
+    // Module 1 setReportType wiring; harmless if Module 1 doesn't call it).
+    App.Module3._refreshSourceStatus = refreshSourceStatus;
   }
 
   return { mount, _ui: ui };
@@ -5704,6 +5737,34 @@ App.Tests = (function(){
     });
     assert(r.errors.some(e => /WEDGE.*bearing/.test(e)),
       'expected bearing parse error; got: '+JSON.stringify(r.errors));
+  });
+
+  add('USAF: Module 3 source-status accepts CBRN3_CHEM_USAF (regression)', ()=>{
+    // Previously the status banner only OK'd NBC2/NBC3 and showed a
+    // misleading "Switch Module 1 to NBC2 CHEM or NBC3 CHEM" hint when
+    // Module 1 was correctly on CBRN3_CHEM_USAF under USAF standard.
+    const refresh = App.Module3._refreshSourceStatus;
+    assert(typeof refresh === 'function', 'refresh hook installed by Module 3 mount');
+    const sel = document.getElementById('plotSource');
+    const st  = document.getElementById('plotMod1Status');
+    const prevSel = sel.value, prevStd = App.Standard.getKey();
+    const prevType = App.Module1._state.reportType;
+    try {
+      App.Standard.set('USAF');
+      App.Module1._state.reportType = 'CBRN3_CHEM_USAF';
+      sel.value = 'mod1';
+      refresh();
+      assert(st.style.display !== 'none', 'status visible for mod1 source');
+      assert(/USAF direct-geometry|PA\/PB/.test(st.innerHTML),
+        'USAF banner should celebrate direct-geometry path, got: '+st.innerHTML);
+      assert(!/Switch Module 1 to NBC2/.test(st.innerHTML),
+        'must not advise switching to NBC2/NBC3 when USAF is already correct');
+    } finally {
+      App.Standard.set(prevStd);
+      App.Module1._state.reportType = prevType;
+      sel.value = prevSel;
+      refresh();
+    }
   });
 
   add('USAF e2e: full sample message → loaded into state → plot', ()=>{
